@@ -9,6 +9,8 @@
 ## ✨ 功能特性
 
 ### 核心笔记
+<img width="2880" height="1444" alt="image" src="https://github.com/user-attachments/assets/7f1900c1-0a66-4327-9daf-ddc2213fcb9b" />
+
 - **加密存储**：笔记内容使用 Web Crypto（AES-GCM + PBKDF2）加密后存入 IndexedDB，首次使用设置密码，之后每次打开需解锁
 - **日历视图**：按日期浏览笔记，标记有笔记 / 有提醒 / 有待办的日期，可折叠
 - **笔记列表**：置顶、拖拽排序、搜索（笔记/待办两种模式）
