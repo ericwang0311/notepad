@@ -20,9 +20,16 @@
 
 ### 可视化工具（顶栏一键切换）
 - **思维导图**：树状布局、框选多选、整组拖拽、自动对齐、平移/缩放
+- <img width="2876" height="1448" alt="image" src="https://github.com/user-attachments/assets/f85a1467-1baa-437a-b8e5-7190f85e0e23" />
+
 - **流程图**：丰富形状库、自动连线、框选整组拖拽、对齐参考线、连线橡皮擦、导出 PNG
+- <img width="2878" height="1464" alt="image" src="https://github.com/user-attachments/assets/e0c56f97-2f45-4973-b097-fe53822798f9" />
+
 - **代码编辑器**：多语言语法高亮、保存为笔记附件
+- <img width="2880" height="1466" alt="image" src="https://github.com/user-attachments/assets/eeaa3009-0225-497f-aa32-c8558348ecb4" />
+
 - **目录比较与同步**：选择本地两个目录进行对比（仅一侧有 / 不一致 / 相同），逐条或一键批量同步，支持回退操作
+<img width="2876" height="1460" alt="image" src="https://github.com/user-attachments/assets/b8b0daca-738e-4d95-bd71-41e9d9d40867" />
 
 ### 个性化与系统
 - **主题**：清新绿 / 炫酷现代 两套主题
