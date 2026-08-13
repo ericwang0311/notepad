@@ -56,7 +56,6 @@ notepad/
 ├── assets/                 # 图标资源
 └── db/data/                # SQLite 数据文件默认目录
 ```
-
 ---
 
 ## 🚀 使用方法
