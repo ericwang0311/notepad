@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Code Editor</title>
+<script src="../js/i18n.js"></script>
+<script src="vendor/highlight.min.js"></script>
+<script src="vendor/languages_powershell.min.js"></script>
+<script src="vendor/languages_dos.min.js"></script>
+<script src="vendor/languages_cmake.min.js"></script>
+<script src="vendor/languages_dockerfile.min.js"></script>
+<script src="vendor/languages_nginx.min.js"></script>
+<script src="vendor/languages_protobuf.min.js"></script>
+<script src="vendor/languages_julia.min.js"></script>
+<script src="vendor/languages_erlang.min.js"></script>
+<script src="vendor/languages_elixir.min.js"></script>
+<script src="vendor/languages_haskell.min.js"></script>
+<script src="vendor/languages_vbnet.min.js"></script>
+<script src="vendor/languages_fsharp.min.js"></script>
+<script src="vendor/languages_fortran.min.js"></script>
+<style>
+:root,
+body {
+  --bg: #1e1e1e;
+  --bg-sidebar: #252526;
+  --bg-tab: #2d2d2d;
+  --bg-tab-active: #1e1e1e;
+  --bg-input: #3c3c3c;
+  --bg-hover: #2a2d2e;
+  --bg-selection: #264f78;
+  --border: #3c3c3c;
+  --text: #cccccc;
+  --text-dim: #858585;
+  --text-bright: #e0e0e0;
+  --accent: #007acc;
+  --accent-hover: #1a8ad4;
+  --gutter-bg: #1e1e1e;
+  --gutter-text: #858585;
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb: #424242;
+  --scrollbar-thumb-hover: #4f4f4f;
+  --brand-a: #3d9a8b;
+  --brand-b: #2d7a6e;
+  --status-bg: var(--brand-a);
+  --status-text: #ffffff;
+  --find-bg: #1e1e1e;
+  --find-match: rgba(0,122,204,0.4);
+  --find-current: rgba(0,122,204,0.8);
+  --badge-bg: #3c3c3c;
+  --line-highlight: #2a2d2e;
+}
+body.light {
+  --bg: #ffffff;
+  --bg-sidebar: #f3f3f3;
+  --bg-tab: #ececec;
+  --bg-tab-active: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #e4e6f1;
+  --bg-selection: #add6ff;
+  --border: #e0e0e0;
+  --text: #333333;
+  --text-dim: #919191;
+  --text-bright: #111111;
+  --accent: #005fb8;
+  --accent-hover: #007acc;
+  --gutter-bg: #f5f5f5;
+  --gutter-text: #858585;
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb: #c1c1c1;
+  --scrollbar-thumb-hover: #a1a1a1;
+  --status-bg: var(--brand-a);
+  --status-text: #ffffff;
+  --find-bg: #f3f3f3;
+  --find-match: rgba(0,95,184,0.3);
+  --find-current: rgba(0,95,184,0.6);
+  --badge-bg: #e0e0e0;
+  --line-highlight: #f0f0f0;
+}
+/* 跟随记事本全局主题：炫酷现代（蓝紫品牌色） */
+body.theme-modern { --brand-a: #5b7ce8; --brand-b: #8b5cf6; }
+body.theme-modern #title-grad stop:first-child { stop-color: #5b7ce8; }
+body.theme-modern #title-grad stop:last-child { stop-color: #8b5cf6; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size:14px; background:var(--bg); color:var(--text);
+  height:100vh; overflow:hidden; user-select:none;
+}
+#app { display:flex; flex-direction:column; height:100vh; }
+
+/* Toolbar */
+#toolbar {
+  display:flex; align-items:center; gap:4px;
+  padding:4px 8px; background:var(--bg-sidebar);
+  border-bottom:1px solid var(--border); height:36px; flex-shrink:0;
+}
+/* 工具栏标题（与思维导图/流程图规范一致：18px 粗体渐变文字 + 图标） */
+#toolbar .toolbar-title {
+  display:flex; align-items:center; gap:6px;
+  font-weight:700; font-size:18px; margin-right:8px;
+  user-select:none; white-space:nowrap;
+  background:linear-gradient(135deg, var(--brand-a), var(--brand-b));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+#toolbar .toolbar-title .title-icon { flex-shrink:0; }
+/* 深色主题：标题文字与图标用白色，保证深底可读性 */
+body:not(.light) #toolbar .toolbar-title { background:none; -webkit-text-fill-color:#fff; color:#fff; }
+body:not(.light) #toolbar .toolbar-title .title-icon g { stroke:#fff; }
+#toolbar button, #toolbar select {
+  background:transparent; border:none; color:var(--text);
+  padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px;
+  font-family:inherit; height:28px; white-space:nowrap;
+}
+#toolbar button:hover, #toolbar select:hover { background:var(--bg-hover); }
+#toolbar button.active { background:var(--accent); color:#fff; }
+#toolbar select { appearance:none; -webkit-appearance:none; padding-right:20px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23858585'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 6px center; }
+#toolbar .sep { width:1px; height:20px; background:var(--border); margin:0 4px; }
+
+/* Main Content */
+#main { display:flex; flex:1; overflow:hidden; }
+
+/* Editor Area */
+#editor-container { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* Tabs */
+#tabs {
+  display:flex; background:var(--bg-sidebar); border-bottom:1px solid var(--border);
+  height:35px; overflow-x:auto; overflow-y:hidden; flex-shrink:0;
+}
+#tabs::-webkit-scrollbar { height:3px; }
+#tabs::-webkit-scrollbar-thumb { background:var(--scrollbar-thumb); border-radius:2px; }
+.tab {
+  display:flex; align-items:center; gap:6px; padding:0 12px;
+  background:var(--bg-tab); color:var(--text-dim); font-size:12px;
+  cursor:pointer; border-right:1px solid var(--border); white-space:nowrap;
+  min-width:100px; max-width:200px; height:35px; position:relative;
+}
+.tab.active { background:var(--bg-tab-active); color:var(--text-bright); }
+.tab.active::after { content:''; position:absolute; top:0; left:0; right:0;
+  height:2px; background:var(--accent); }
+.tab .tab-name { overflow:hidden; text-overflow:ellipsis; flex:1; }
+.tab .tab-close { font-size:14px; opacity:0; cursor:pointer; padding:0 2px; border-radius:3px; }
+.tab:hover .tab-close { opacity:0.7; }
+.tab .tab-close:hover { opacity:1; background:var(--bg-hover); }
+.tab.modified::before { content:'\25CF'; font-size:8px; margin-right:-2px; color:var(--text-bright); }
+.tab.pinned { background:var(--bg-tab-active); }
+.tab.pinned .tab-name { color:var(--text-bright); }
+.tab .tab-pin { font-size:11px; color:var(--accent); margin-right:-2px; display:none; }
+.tab.pinned .tab-pin { display:inline; }
+.tab.drag-over { border-left:2px solid var(--accent); }
+.tab[draggable="true"] { cursor:grab; }
+.tab.pinned[draggable="true"] { cursor:default; }
+.tab[draggable="true"]:active { cursor:grabbing; }
+
+/* 标签页右键菜单 */
+#tab-context-menu {
+  display:none; position:fixed; z-index:9999; min-width:160px;
+  background:var(--bg-tooltip); border:1px solid var(--border); border-radius:6px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.35); padding:4px 0;
+}
+#tab-context-menu .ctx-item {
+  display:flex; align-items:center; gap:8px; padding:7px 14px;
+  font-size:12px; color:var(--text-bright); cursor:pointer; transition:background 0.12s;
+}
+#tab-context-menu .ctx-item:hover { background:var(--bg-hover); }
+#tab-context-menu .ctx-item.danger { color:#f48771; }
+#tab-context-menu .ctx-item .ctx-shortcut { margin-left:auto; color:var(--text-dim); font-size:11px; }
+#tab-context-menu .ctx-sep { height:1px; background:var(--border); margin:4px 0; }
+
+/* Editor */
+#editor-wrap { flex:1; display:flex; overflow:hidden; position:relative; }
+#gutter {
+  background:var(--gutter-bg); color:var(--gutter-text);
+  text-align:right; padding:10px 8px 10px 0; overflow:hidden;
+  font-size:13px; line-height:1.6; font-family:inherit; white-space:pre;
+  border-right:1px solid var(--border); min-width:36px; user-select:none;
+  flex-shrink:0; position:relative;
+}
+.gutter-line {
+  cursor:default; display:flex; align-items:center; justify-content:flex-end;
+  padding-right:4px; transition:background 0.1s;
+}
+.gutter-num { min-width:24px; text-align:right; color:var(--gutter-text); }
+.gutter-line.drag-over { border-top:2px solid var(--accent); }
+.gutter-line.dragging { opacity:0.3; }
+#editor-scroll { flex:1; overflow:auto; position:relative; }
+#editor-scroll::-webkit-scrollbar { width:10px; height:10px; }
+#editor-scroll::-webkit-scrollbar-track { background:var(--scrollbar-bg); }
+#editor-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar-thumb); border-radius:5px; }
+#editor-scroll::-webkit-scrollbar-thumb:hover { background:var(--scrollbar-thumb-hover); }
+#editor-scroll::-webkit-scrollbar-corner { background:transparent; }
+#highlight-layer {
+  position:absolute; top:0; left:0; padding:10px 16px;
+  font-size:13px; line-height:1.6; font-family:inherit;
+  white-space:pre; pointer-events:none; color:transparent; min-width:100%;
+}
+#highlight-layer * { font-family:inherit !important; font-size:13px !important; line-height:1.6 !important; }
+#textarea {
+  position:absolute; top:0; left:0; width:100%; min-height:100%;
+  padding:10px 16px; border:none; outline:none; resize:none;
+  font-size:13px; line-height:1.6; font-family:inherit;
+  background:transparent; color:transparent; caret-color:var(--text-bright);
+  white-space:pre; overflow:hidden; tab-size:4;
+}
+#textarea::selection { background:var(--bg-selection); color:transparent; }
+
+/* Empty State */
+#empty-state {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  flex:1; gap:16px; color:var(--text-dim);
+}
+#empty-state .logo { font-size:64px; opacity:0.3; }
+#empty-state h2 { font-size:24px; font-weight:300; color:var(--text); }
+#empty-state p { font-size:13px; max-width:400px; text-align:center; line-height:1.6; }
+#empty-state .shortcuts { display:grid; grid-template-columns:auto auto; gap:6px 16px; font-size:12px; }
+#empty-state .shortcuts kbd {
+  background:var(--badge-bg); padding:2px 6px; border-radius:3px;
+  font-family:inherit; font-size:11px; border:1px solid var(--border);
+}
+
+/* Find Bar */
+#find-bar {
+  display:none; position:absolute; top:0; right:8px; z-index:10;
+  background:var(--find-bg); border:1px solid var(--border);
+  border-top:none; border-radius:0 0 4px 4px; padding:6px 8px;
+  display:none; flex-direction:column; gap:4px; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  min-width:280px;
+}
+#find-bar.visible { display:flex; }
+#find-bar input {
+  background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+  padding:4px 8px; border-radius:3px; font-size:12px; font-family:inherit;
+  outline:none; width:220px;
+}
+#find-bar input:focus { border-color:var(--accent); }
+#find-bar .find-row { display:flex; gap:4px; align-items:center; }
+#find-bar button {
+  background:transparent; border:none; color:var(--text); cursor:pointer;
+  padding:2px 6px; border-radius:3px; font-size:12px;
+}
+#find-bar button:hover { background:var(--bg-hover); }
+#find-bar .find-info { font-size:11px; color:var(--text-dim); min-width:60px; text-align:right; }
+#find-bar .find-options { display:flex; gap:4px; }
+#find-bar .find-options label { font-size:11px; color:var(--text-dim);
+  display:flex; align-items:center; gap:2px; cursor:pointer; }
+#find-bar .find-options input[type=checkbox] { width:auto; }
+
+/* Status Bar */
+#statusbar {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--status-bg); color:var(--status-text);
+  padding:0 12px; height:24px; font-size:12px; flex-shrink:0;
+}
+#statusbar .left, #statusbar .right { display:flex; align-items:center; gap:16px; }
+#statusbar span { display:flex; align-items:center; gap:4px; }
+
+/* Toast */
+#toast {
+  position:fixed; top:60px; right:20px; z-index:100;
+  background:var(--bg-input); color:var(--text-bright);
+  padding:8px 16px; border-radius:4px; font-size:12px;
+  border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.4);
+  opacity:0; transform:translateY(-10px); transition:all 0.2s;
+  pointer-events:none;
+}
+#toast.show { opacity:1; transform:translateY(0); }
+
+/* Dropdown */
+.dropdown { position:relative; display:inline-block; }
+.dropdown-menu {
+  display:none; position:absolute; top:100%; left:0; z-index:50;
+  background:var(--bg-sidebar); border:1px solid var(--border);
+  border-radius:4px; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  padding:4px 0; margin-top:2px;
+}
+.dropdown-menu.show { display:block; }
+.dropdown-menu button {
+  display:block; width:100%; text-align:left; padding:6px 12px;
+  background:transparent; border:none; color:var(--text); cursor:pointer;
+  font-size:12px; font-family:inherit;
+}
+.dropdown-menu button:hover { background:var(--bg-hover); }
+
+/* Resize handle */
+.resize-handle { width:100%; height:3px; background:transparent; cursor:row-resize; flex-shrink:0; }
+.resize-handle:hover { background:var(--accent); }
+
+/* SVG Icons - all monochrome, inheriting parent color */
+.icon {
+  display:inline-block; vertical-align:middle;
+  fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+.icon-btn {
+  background:transparent; border:none; color:var(--text-dim); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:2px; border-radius:4px;
+}
+.icon-btn:hover { color:var(--text-bright); background:var(--bg-hover); }
+#toolbar button { display:inline-flex; align-items:center; gap:4px; }
+#toolbar button .icon { flex-shrink:0; }
+
+/* ============ Notepad++ Style Syntax Highlighting ============ */
+/* Base text color in highlight layer */
+#highlight-layer { color:var(--text) !important; }
+
+/* ---- Keywords (blue - like if, else, for, while, return, class, function, var, let, const) ---- */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section { color:#569CD6; font-weight:normal; }
+body.light .hljs-keyword,
+body.light .hljs-selector-tag,
+body.light .hljs-section { color:#0000FF; font-weight:bold; }
+
+/* ---- Type names (teal - int, string, bool, class names used as types) ---- */
+.hljs-type { color:#4EC9B0; }
+body.light .hljs-type { color:#267F99; }
+
+/* ---- Built-in functions/objects (cyan/light blue - console, Math, len, print) ---- */
+.hljs-built_in { color:#4FC1FF; }
+body.light .hljs-built_in { color:#795E26; }
+
+/* ---- Literals (orange - true, false, null, None, undefined) ---- */
+.hljs-literal { color:#CE9178; }
+body.light .hljs-literal { color:#AF00DB; }
+
+/* ---- Numbers (light green/orange - 123, 3.14, 0xFF) ---- */
+.hljs-number { color:#B5CEA8; }
+body.light .hljs-number { color:#098658; }
+
+/* ---- Strings (orange/brown - "hello", 'world') ---- */
+.hljs-string { color:#CE9178; }
+body.light .hljs-string { color:#A31515; }
+
+/* ---- Comments (green - // comment, /* comment *​/, # comment) ---- */
+.hljs-comment { color:#6A9955; font-style:italic; }
+body.light .hljs-comment { color:#008000; font-style:italic; }
+
+/* ---- Function names (yellow/gold) ---- */
+.hljs-title.function_,
+.hljs-title.function {
+  color:#DCDCAA; font-weight:normal;
+}
+body.light .hljs-title.function_,
+body.light .hljs-title.function {
+  color:#795E26; font-weight:normal;
+}
+
+/* ---- Class names (teal/green) ---- */
+.hljs-title.class_,
+.hljs-title.class {
+  color:#4EC9B0;
+}
+body.light .hljs-title.class_,
+body.light .hljs-title.class {
+  color:#267F99;
+}
+
+/* ---- Generic title (used for section headings etc) ---- */
+.hljs-title { color:#DCDCAA; }
+body.light .hljs-title { color:#800000; }
+
+/* ---- Function parameters (light orange) ---- */
+.hljs-params { color:#D7BA7D; font-style:normal; }
+body.light .hljs-params { color:#001080; }
+
+/* ---- Variables (light blue/cyan) ---- */
+.hljs-variable { color:#9CDCFE; }
+body.light .hljs-variable { color:#001080; }
+
+/* ---- Language-specific variables (this, self, super) ---- */
+.hljs-variable.language_ { color:#569CD6; }
+body.light .hljs-variable.language_ { color:#0000FF; }
+
+/* ---- Constants (uppercase, final) ---- */
+.hljs-variable.constant_ { color:#4FC1FF; }
+body.light .hljs-variable.constant_ { color:#0070C1; }
+
+/* ---- Regex (red) ---- */
+.hljs-regexp { color:#D16969; }
+body.light .hljs-regexp { color:#811F3F; }
+
+/* ---- Symbols/Operators (default text color) ---- */
+.hljs-operator { color:var(--text); }
+body.light .hljs-operator { color:#000000; }
+
+/* ---- Punctuation (brackets, dots, semicolons - dim) ---- */
+.hljs-punctuation { color:var(--text-dim); }
+body.light .hljs-punctuation { color:#808080; }
+
+/* ---- HTML/XML Tags ---- */
+.hljs-tag { color:#569CD6; }
+body.light .hljs-tag { color:#800000; }
+
+/* ---- HTML/XML Attribute names (light blue) ---- */
+.hljs-attr { color:#9CDCFE; }
+body.light .hljs-attr { color:#FF0000; }
+
+/* ---- HTML/XML Attribute values ---- */
+.hljs-attribute { color:#CE9178; }
+body.light .hljs-attribute { color:#0000FF; }
+
+/* ---- CSS Property names ---- */
+.hljs-property { color:#9CDCFE; }
+body.light .hljs-property { color:#FF0000; }
+
+/* ---- CSS Selectors (class, id) ---- */
+.hljs-selector-class { color:#D7BA7D; }
+body.light .hljs-selector-class { color:#800000; }
+.hljs-selector-id { color:#D7BA7D; }
+body.light .hljs-selector-id { color:#800000; }
+
+/* ---- CSS Pseudo-classes ---- */
+.hljs-selector-pseudo { color:#569CD6; }
+body.light .hljs-selector-pseudo { color:#800000; }
+
+/* ---- CSS @ rules ---- */
+.hljs-selector-attr { color:#9CDCFE; }
+body.light .hljs-selector-attr { color:#FF0000; }
+
+/* ---- Template string substitutions (${...}) ---- */
+.hljs-subst { color:#D7BA7D; }
+body.light .hljs-subst { color:#001080; }
+
+/* ---- Preprocessor/Meta (#include, #define, @import) ---- */
+.hljs-meta { color:#808080; }
+body.light .hljs-meta { color:#808080; }
+
+/* ---- Preprocessor keywords (#ifdef, #ifndef) ---- */
+.hljs-meta-keyword { color:#569CD6; }
+body.light .hljs-meta-keyword { color:#AF00DB; }
+
+/* ---- Preprocessor strings ---- */
+.hljs-meta-string { color:#CE9178; }
+body.light .hljs-meta-string { color:#A31515; }
+
+/* ---- Symbols (special symbols) ---- */
+.hljs-symbol { color:#B5CEA8; }
+body.light .hljs-symbol { color:#0451A5; }
+
+/* ---- Bullet points (markdown lists) ---- */
+.hljs-bullet { color:#D7BA7D; }
+body.light .hljs-bullet { color:#0451A5; }
+
+/* ---- Code blocks inside markdown ---- */
+.hljs-code { color:#CE9178; }
+body.light .hljs-code { color:#A31515; }
+
+/* ---- Emphasis (italic) ---- */
+.hljs-emphasis { font-style:italic; }
+
+/* ---- Strong (bold) ---- */
+.hljs-strong { font-weight:bold; color:var(--text-bright); }
+
+/* ---- Links ---- */
+.hljs-link { color:#569CD6; text-decoration:underline; }
+body.light .hljs-link { color:#0000FF; text-decoration:underline; }
+
+/* ---- Quotes in markdown ---- */
+.hljs-quote { color:#6A9955; font-style:italic; }
+body.light .hljs-quote { color:#008000; font-style:italic; }
+
+/* ---- Formula (LaTeX) ---- */
+.hljs-formula { color:#D7BA7D; }
+body.light .hljs-formula { color:#001080; }
+
+/* ---- Deletion (diff) ---- */
+.hljs-deletion { color:#CE9178; background:rgba(206,145,120,0.15); }
+body.light .hljs-deletion { color:#A31515; background:rgba(163,21,21,0.08); }
+
+/* ---- Addition (diff) ---- */
+.hljs-addition { color:#B5CEA8; background:rgba(181,206,168,0.15); }
+body.light .hljs-addition { color:#098658; background:rgba(9,134,88,0.08); }
+
+/* ---- Name (general identifier, variables, function references) ---- */
+.hljs-name { color:#D7BA7D; }
+body.light .hljs-name { color:#800000; }
+
+/* ---- Tag name in XML/HTML ---- */
+.hljs-tag .hljs-name { color:#569CD6; }
+body.light .hljs-tag .hljs-name { color:#800000; }
+
+/* ---- Doctag (@param, @return in JSDoc) ---- */
+.hljs-doctag { color:#C586C0; font-weight:bold; }
+body.light .hljs-doctag { color:#AF00DB; font-weight:bold; }
+
+/* ---- Template tag ---- */
+.hljs-template-tag { color:#C586C0; }
+body.light .hljs-template-tag { color:#0000FF; }
+
+/* ---- Template variable ---- */
+.hljs-template-variable { color:#9CDCFE; }
+body.light .hljs-template-variable { color:#001080; }
+
+/* ---- Form feed (special whitespace marker) ---- */
+.hljs-formula { color:var(--text-dim); }
+
+/* ---- Char escape sequences (\\n, \\t, \\u) ---- */
+.hljs-char.escape_ { color:#D7BA7D; }
+body.light .hljs-char.escape_ { color:#EE0000; }
+
+/* ---- Regex quantifiers/anchors ---- */
+.hljs-regexp .hljs-keyword,
+.hljs-regexp .hljs-built_in { color:#D16969; }
+
+/* Editor background for highlight layer */
+#highlight-layer { pointer-events:none; position:absolute; color:var(--text); }
+
+/* Find match highlights overlay */
+#highlight-layer mark.find-match {
+  background:var(--find-current);
+  color:inherit; border-radius:2px; padding:0;
+}
+
+/* Line highlight on active line */
+.gutter-line.active { background:var(--line-highlight); }
+.gutter-line.active .gutter-num { color:var(--text-bright); }
+
+/* ============ Code Clean Modal ============ */
+#clean-modal-overlay {
+  position:fixed; top:0; left:0; right:0; bottom:0; z-index:200;
+  background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(2px);
+}
+#clean-modal {
+  background:var(--bg); border:1px solid var(--border); border-radius:8px;
+  width:90vw; max-width:1000px; max-height:90vh; display:flex; flex-direction:column;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+}
+#clean-modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px;
+  color:var(--text-bright); font-weight:600; flex-shrink:0;
+}
+.modal-close {
+  background:transparent; border:none; color:var(--text-dim); cursor:pointer;
+  font-size:16px; padding:2px 6px; border-radius:3px; line-height:1;
+}
+.modal-close:hover { background:var(--bg-hover); color:var(--text-bright); }
+#clean-input {
+  width:100%; min-height:180px; max-height:300px; padding:12px 16px;
+  border:none; border-bottom:1px solid var(--border); outline:none;
+  resize:vertical; font-family:inherit; font-size:13px; line-height:1.6;
+  background:var(--bg-input); color:var(--text); tab-size:4;
+}
+#clean-input::placeholder { color:var(--text-dim); }
+#clean-options {
+  display:flex; flex-wrap:wrap; gap:4px 16px; padding:8px 16px;
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+#clean-options label {
+  font-size:11px; color:var(--text-dim); display:flex; align-items:center;
+  gap:3px; cursor:pointer; user-select:none;
+}
+#clean-options input[type=checkbox] { cursor:pointer; accent-color:var(--accent); }
+#clean-preview-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:6px 16px; font-size:11px; color:var(--text-dim); flex-shrink:0;
+}
+#clean-stats { color:var(--accent); }
+#clean-preview-wrap {
+  flex:1; overflow:auto; min-height:150px; max-height:300px;
+  padding:8px 16px; background:var(--bg-sidebar); border-bottom:1px solid var(--border);
+}
+#clean-preview-wrap::-webkit-scrollbar { width:6px; height:6px; }
+#clean-preview-wrap::-webkit-scrollbar-thumb { background:var(--scrollbar-thumb); border-radius:3px; }
+#clean-preview {
+  margin:0; font-family:inherit; font-size:12px; line-height:1.6; white-space:pre-wrap;
+  word-break:break-all; color:var(--text); tab-size:4;
+}
+#clean-modal-footer {
+  display:flex; gap:8px; padding:10px 16px; flex-shrink:0; justify-content:flex-end;
+}
+#clean-modal-footer button {
+  padding:6px 14px; border-radius:4px; font-size:12px; cursor:pointer;
+  font-family:inherit; border:1px solid var(--border); background:var(--bg-input);
+  color:var(--text);
+}
+#clean-modal-footer button:hover { background:var(--bg-hover); }
+#clean-modal-footer .btn-primary {
+  background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;
+}
+#clean-modal-footer .btn-primary:hover { background:var(--accent-hover); }
+#clean-modal-footer .btn-cancel { opacity:0.6; }
+</style>
+</head>
+<body>
+<!-- SVG Icon Library (monochrome, inherits currentColor) -->
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <!-- File -->
+    <symbol id="icon-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </symbol>
+    <!-- Folder -->
+    <symbol id="icon-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </symbol>
+    <!-- Save -->
+    <symbol id="icon-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+      <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+    </symbol>
+    <!-- Undo -->
+    <symbol id="icon-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+    </symbol>
+    <!-- Redo -->
+    <symbol id="icon-redo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </symbol>
+    <!-- Comment -->
+    <symbol id="icon-comment" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+    </symbol>
+    <!-- Search -->
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </symbol>
+    <!-- Wrap -->
+    <symbol id="icon-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="8 3 4 7 8 11"/><path d="M4 7h12a4 4 0 0 1 0 8h-4"/>
+    </symbol>
+    <!-- Sun/Moon for theme -->
+    <symbol id="icon-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2m-10-10h2m16 0h2"/>
+      <path d="M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/>
+    </symbol>
+    <!-- Clean / Broom -->
+    <symbol id="icon-clean" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 21l3-3M21 3l-3 3M6 3L3 6l15 15 3-3L6 3z"/>
+      <line x1="7.5" y1="7.5" x2="13.5" y2="13.5"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span class="toolbar-title"><svg class="title-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="title-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3d9a8b"/><stop offset="1" stop-color="#2d7a6e"/></linearGradient></defs><g stroke="url(#title-grad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></g></svg><span data-i18n>代码编辑</span></span>
+    <span class="sep"></span>
+    <button onclick="newFile()" title="新建文件 (Ctrl+N)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-file"/></svg> <span data-i18n>新建</span></button>
+    <button onclick="openFile()" title="打开文件 (Ctrl+O)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-folder"/></svg> <span data-i18n>打开</span></button>
+    <button onclick="saveFile()" title="保存文件 (Ctrl+S)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-save"/></svg> <span data-i18n>保存</span></button>
+    <span class="sep"></span>
+    <button onclick="undo()" title="撤销 (Ctrl+Z)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-undo"/></svg></button>
+    <button onclick="redo()" title="重做 (Ctrl+Y)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-redo"/></svg></button>
+    <button onclick="toggleLineComment()" title="切换注释 (Ctrl+/)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-comment"/></svg> <span data-i18n>注释</span></button>
+    <span class="sep"></span>
+    <button onclick="toggleFind()" title="查找替换 (Ctrl+F)" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-search"/></svg> <span data-i18n>查找</span></button>
+    <button onclick="openCleanModal()" title="AI代码清洗 - 提取纯代码、去格式" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-clean"/></svg> <span data-i18n>清洗</span></button>
+    <span class="sep"></span>
+    <select id="lang-select" onchange="changeLanguage(this.value)" title="选择语言" data-i18n-title>
+    </select>
+    <span class="sep"></span>
+    <span class="sep"></span>
+    <button onclick="toggleWordWrap()" id="wrap-btn" title="自动换行" data-i18n-title><svg class="icon" width="14" height="14"><use href="#icon-wrap"/></svg></button>
+    <button onclick="changeFontSize(-1)" title="缩小字号" data-i18n-title>A-</button>
+    <button onclick="changeFontSize(1)" title="放大字号" data-i18n-title>A+</button>
+    <button onclick="toggleTheme()" title="切换主题" data-i18n-title class="icon-btn" style="margin-left:auto;">
+      <svg class="icon" width="16" height="16"><use href="#icon-theme"/></svg>
+    </button>
+  </div>
+
+  <!-- Main Content -->
+  <div id="main">
+    <!-- Editor Area -->
+    <div id="editor-container">
+      <!-- Tabs -->
+      <div id="tabs"></div>
+
+      <!-- Editor -->
+      <div id="editor-wrap">
+        <div id="gutter"></div>
+        <div id="editor-scroll">
+          <div id="highlight-layer"></div>
+          <textarea id="textarea" spellcheck="false" placeholder=""></textarea>
+        </div>
+        <!-- Find Bar -->
+        <div id="find-bar">
+          <div class="find-row">
+            <input type="text" id="find-input" placeholder="查找..." data-i18n-ph oninput="doFind()">
+            <span class="find-info" id="find-count"></span>
+            <button onclick="findPrev()" title="上一个" data-i18n-title>▲</button>
+            <button onclick="findNext()" title="下一个" data-i18n-title>▼</button>
+            <button onclick="toggleFind()" title="关闭" data-i18n-title>✕</button>
+          </div>
+          <div class="find-row">
+            <input type="text" id="replace-input" placeholder="替换为..." data-i18n-ph oninput="doFind()">
+            <button onclick="replaceOne()" title="替换" data-i18n-title data-i18n>替换</button>
+            <button onclick="replaceAll()" title="全部替换" data-i18n-title data-i18n>全部</button>
+            <div class="find-options">
+              <label><input type="checkbox" id="find-case" onchange="doFind()">Aa</label>
+              <label><input type="checkbox" id="find-regex" onchange="doFind()">.*</label>
+              <label><input type="checkbox" id="find-whole" onchange="doFind()">ab</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Bar -->
+      <div id="statusbar">
+        <div class="left">
+          <span id="status-lang">Plain Text</span>
+          <span id="status-encoding">UTF-8</span>
+          <span id="status-eol">LF</span>
+        </div>
+        <div class="right">
+          <span id="status-position" data-i18n>行 1, 列 1</span>
+          <span id="status-indent" data-i18n>空格: 4</span>
+          <span id="status-lines" data-i18n>共 0 行</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Code Clean Modal -->
+<div id="clean-modal-overlay" style="display:none;" onclick="if(event.target===this)closeCleanModal()">
+  <div id="clean-modal">
+    <div id="clean-modal-header">
+      <span data-i18n>AI 代码清洗 - 提取纯代码，去除格式和无效内容</span>
+      <button onclick="closeCleanModal()" class="modal-close" title="关闭 (Esc)" data-i18n-title>✕</button>
+    </div>
+    <textarea id="clean-input" placeholder="在此粘贴 AI 生成的混合内容（含代码块、HTML格式、说明文字等）...&#10;支持格式:&#10;  - Markdown 代码围栏 (```)&#10;  - HTML 格式化标签&#10;  - 行号前缀&#10;  - 多余的说明文字&#10;  - 多种混合内容&#10;..." data-i18n-ph></textarea>
+    <div id="clean-options">
+      <label><input type="checkbox" id="clean-strip-html" checked> <span data-i18n>去除 HTML 标签</span></label>
+      <label><input type="checkbox" id="clean-extract-blocks" checked> <span data-i18n>提取代码块（```...```）</span></label>
+      <label><input type="checkbox" id="clean-merge" checked> <span data-i18n>合并为单个代码块</span></label>
+      <label><input type="checkbox" id="clean-strip-linenums" checked> <span data-i18n>去除行号</span></label>
+      <label><input type="checkbox" id="clean-strip-commentary" checked> <span data-i18n>清除非注释的文本描述</span></label>
+      <label><input type="checkbox" id="clean-keep-comments"> <span data-i18n>保留注释</span></label>
+      <label><input type="checkbox" id="clean-trim-lines"> <span data-i18n>去除空行</span></label>
+    </div>
+    <div id="clean-preview-header">
+      <span data-i18n>清洗结果预览</span>
+      <span id="clean-stats"></span>
+    </div>
+    <div id="clean-preview-wrap">
+      <pre id="clean-preview"></pre>
+    </div>
+    <div id="clean-modal-footer">
+      <button onclick="applyCleanResult('new')" class="btn-primary" data-i18n>插入为新标签页</button>
+      <button onclick="applyCleanResult('replace')" data-i18n>替换当前内容</button>
+      <button onclick="applyCleanResult('append')" data-i18n>追加到当前</button>
+      <button onclick="closeCleanModal()" class="btn-cancel" data-i18n>取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ==================== 语言定义 ====================
+const LANGUAGES = [
+  // 主流开发语言
+  { id:'javascript', name:'JavaScript', ext:'.js', mime:'text/javascript' },
+  { id:'typescript', name:'TypeScript', ext:'.ts', mime:'text/typescript' },
+  { id:'python', name:'Python', ext:'.py', mime:'text/x-python' },
+  { id:'java', name:'Java', ext:'.java', mime:'text/x-java' },
+  { id:'cpp', name:'C++', ext:'.cpp', mime:'text/x-c++src' },
+  { id:'c', name:'C', ext:'.c', mime:'text/x-csrc' },
+  { id:'csharp', name:'C#', ext:'.cs', mime:'text/x-csharp' },
+  { id:'go', name:'Go', ext:'.go', mime:'text/x-go' },
+  { id:'rust', name:'Rust', ext:'.rs', mime:'text/x-rustsrc' },
+  { id:'ruby', name:'Ruby', ext:'.rb', mime:'text/x-ruby' },
+  { id:'php', name:'PHP', ext:'.php', mime:'text/x-php' },
+  { id:'swift', name:'Swift', ext:'.swift', mime:'text/x-swift' },
+  { id:'kotlin', name:'Kotlin', ext:'.kt', mime:'text/x-kotlin' },
+  { id:'scala', name:'Scala', ext:'.scala', mime:'text/x-scala' },
+  { id:'dart', name:'Dart', ext:'.dart', mime:'text/x-dart' },
+  { id:'lua', name:'Lua', ext:'.lua', mime:'text/x-lua' },
+  { id:'perl', name:'Perl', ext:'.pl', mime:'text/x-perl' },
+  { id:'r', name:'R', ext:'.r', mime:'text/x-rsrc' },
+  { id:'haskell', name:'Haskell', ext:'.hs', mime:'text/x-haskell' },
+  { id:'elixir', name:'Elixir', ext:'.ex', mime:'text/x-elixir' },
+  { id:'clojure', name:'Clojure', ext:'.clj', mime:'text/x-clojure' },
+  { id:'erlang', name:'Erlang', ext:'.erl', mime:'text/x-erlang' },
+  { id:'objectivec', name:'Objective-C', ext:'.m', mime:'text/x-objectivec' },
+  // Web 前端
+  { id:'html', name:'HTML', ext:'.html', mime:'text/html' },
+  { id:'xml', name:'XML', ext:'.xml', mime:'text/xml' },
+  { id:'css', name:'CSS', ext:'.css', mime:'text/css' },
+  { id:'scss', name:'SCSS', ext:'.scss', mime:'text/x-scss' },
+  { id:'less', name:'Less', ext:'.less', mime:'text/x-less' },
+  { id:'svelte', name:'Svelte', ext:'.svelte', mime:'text/x-svelte' },
+  { id:'vue', name:'Vue', ext:'.vue', mime:'text/x-vue' },
+  // 数据/配置格式
+  { id:'json', name:'JSON', ext:'.json', mime:'application/json' },
+  { id:'yaml', name:'YAML', ext:'.yaml', mime:'text/x-yaml' },
+  { id:'toml', name:'TOML', ext:'.toml', mime:'text/x-toml' },
+  { id:'ini', name:'INI', ext:'.ini', mime:'text/x-ini' },
+  { id:'csv', name:'CSV', ext:'.csv', mime:'text/csv' },
+  { id:'properties', name:'Properties', ext:'.properties', mime:'text/x-properties' },
+  { id:'markdown', name:'Markdown', ext:'.md', mime:'text/markdown' },
+  { id:'latex', name:'LaTeX', ext:'.tex', mime:'text/x-latex' },
+  // 数据库
+  { id:'sql', name:'SQL', ext:'.sql', mime:'text/x-sql' },
+  { id:'graphql', name:'GraphQL', ext:'.graphql', mime:'text/x-graphql' },
+  // Shell / 脚本 / OS 命令
+  { id:'bash', name:'Bash / Shell', ext:'.sh', mime:'text/x-sh' },
+  { id:'zsh', name:'Zsh', ext:'.zsh', mime:'text/x-sh' },
+  { id:'powershell', name:'PowerShell', ext:'.ps1', mime:'text/x-powershell' },
+  { id:'dos', name:'Batch / DOS', ext:'.bat', mime:'text/x-dos' },
+  { id:'cmd', name:'CMD', ext:'.cmd', mime:'text/x-dos' },
+  { id:'makefile', name:'Makefile', ext:'', mime:'text/x-makefile' },
+  { id:'cmake', name:'CMake', ext:'.cmake', mime:'text/x-cmake' },
+  { id:'dockerfile', name:'Dockerfile', ext:'', mime:'text/x-dockerfile' },
+  { id:'nginx', name:'Nginx Config', ext:'.conf', mime:'text/x-nginx-conf' },
+  { id:'apache', name:'Apache Config', ext:'.conf', mime:'text/x-apache' },
+  // AI 相关格式
+  { id:'python', name:'AI Prompt / Python', ext:'.py', mime:'text/x-python' },
+  { id:'json', name:'AI Config (JSON)', ext:'.json', mime:'application/json' },
+  { id:'yaml', name:'AI Config (YAML)', ext:'.yaml', mime:'text/x-yaml' },
+  { id:'plaintext', name:'AI Prompt (Text)', ext:'.txt', mime:'text/plain' },
+  // 其他
+  { id:'diff', name:'Diff', ext:'.diff', mime:'text/x-diff' },
+  { id:'plaintext', name:'Plain Text', ext:'.txt', mime:'text/plain' },
+  { id:'log', name:'Log', ext:'.log', mime:'text/plain' },
+  { id:'protobuf', name:'Protobuf', ext:'.proto', mime:'text/x-protobuf' },
+  { id:'thrift', name:'Thrift', ext:'.thrift', mime:'text/x-thrift' },
+  { id:'groovy', name:'Groovy', ext:'.groovy', mime:'text/x-groovy' },
+  { id:'gradle', name:'Gradle', ext:'.gradle', mime:'text/x-gradle' },
+  { id:'matlab', name:'MATLAB', ext:'.m', mime:'text/x-matlab' },
+  { id:'fortran', name:'Fortran', ext:'.f90', mime:'text/x-fortran' },
+  { id:'cobol', name:'COBOL', ext:'.cob', mime:'text/x-cobol' },
+  { id:'pascal', name:'Pascal', ext:'.pas', mime:'text/x-pascal' },
+  { id:'vbnet', name:'VB.NET', ext:'.vb', mime:'text/x-vbnet' },
+  { id:'fsharp', name:'F#', ext:'.fs', mime:'text/x-fsharp' },
+  { id:'julia', name:'Julia', ext:'.jl', mime:'text/x-julia' },
+  { id:'solidity', name:'Solidity', ext:'.sol', mime:'text/x-solidity' },
+  { id:'tcl', name:'Tcl', ext:'.tcl', mime:'text/x-tcl' },
+  { id:'vhdl', name:'VHDL', ext:'.vhdl', mime:'text/x-vhdl' },
+  { id:'verilog', name:'Verilog', ext:'.v', mime:'text/x-verilog' },
+  { id:'scheme', name:'Scheme', ext:'.scm', mime:'text/x-scheme' },
+  { id:'lisp', name:'Lisp', ext:'.lisp', mime:'text/x-lisp' },
+  { id:'prolog', name:'Prolog', ext:'.pl', mime:'text/x-prolog' },
+  { id:'awk', name:'AWK', ext:'.awk', mime:'text/x-awk' },
+  { id:'sed', name:'Sed', ext:'.sed', mime:'text/x-sed' },
+];
+
+// 去重
+const uniqueLangs = [];
+const seen = new Set();
+for (const l of LANGUAGES) {
+  const key = l.id + '|' + l.name;
+  if (!seen.has(key)) { seen.add(key); uniqueLangs.push(l); }
+}
+
+// 文件扩展名映射
+const extMap = {};
+for (const l of LANGUAGES) {
+  if (l.ext && !extMap[l.ext]) extMap[l.ext] = l.id;
+}
+// 额外映射
+extMap['.jsx'] = 'javascript';
+extMap['.tsx'] = 'typescript';
+extMap['.yml'] = 'yaml';
+extMap['.htm'] = 'html';
+extMap['.xhtml'] = 'html';
+extMap['.c++'] = 'cpp';
+extMap['.cxx'] = 'cpp';
+extMap['.cc'] = 'cpp';
+extMap['.h'] = 'c';
+extMap['.hpp'] = 'cpp';
+extMap['.pyw'] = 'python';
+extMap['.rb'] = 'ruby';
+extMap['.mk'] = 'makefile';
+extMap['.Dockerfile'] = 'dockerfile';
+extMap['.cfg'] = 'ini';
+extMap['.conf'] = 'nginx';
+extMap['.psm1'] = 'powershell';
+extMap['.psd1'] = 'powershell';
+
+// ==================== 状态管理 ====================
+const state = {
+  tabs: [],
+  activeTabIdx: -1,
+  theme: 'light',
+  wordWrap: false,
+  fontSize: 14,
+  undoStack: [],
+  redoStack: [],
+  lastContent: '',
+  findVisible: false,
+  selecting: false,
+};
+
+// ==================== DOM 引用 ====================
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+const textarea = $('#textarea');
+const highlightLayer = $('#highlight-layer');
+const gutter = $('#gutter');
+const editorScroll = $('#editor-scroll');
+const tabsContainer = $('#tabs');
+const langSelect = $('#lang-select');
+const findBar = $('#find-bar');
+const findInput = $('#find-input');
+const findCount = $('#find-count');
+
+// ==================== 初始化 ====================
+function init() {
+  // 填充语言选择器
+  langSelect.innerHTML = uniqueLangs.map(l =>
+    `<option value="${l.id}">${l.name}${l.ext ? ' ('+l.ext+')' : ''}</option>`
+  ).join('');
+
+  // 初始化标签页
+  newFile();
+
+  // 事件监听
+  textarea.addEventListener('input', onInput);
+  textarea.addEventListener('scroll', syncScroll);
+  textarea.addEventListener('click', updateCursor);
+  textarea.addEventListener('keyup', updateCursor);
+  editorScroll.addEventListener('scroll', syncScroll);
+
+  // Tab 键处理 + Auto-indent on Enter + Comment toggle
+  textarea.addEventListener('keydown', (e) => {
+    // Tab 键
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      // ... same Tab logic but embedded inline
+      const start2 = textarea.selectionStart;
+      const end2 = textarea.selectionEnd;
+      const val2 = textarea.value;
+      if (!e.shiftKey) {
+        if (start2 !== end2) {
+          // Indent selected lines
+          const lineStart = val2.lastIndexOf('\n', start2 - 1) + 1;
+          const lineEnd = val2.indexOf('\n', end2 - 1);
+          const actualEnd = lineEnd === -1 ? val2.length : lineEnd;
+          const selectedText = val2.substring(lineStart, actualEnd);
+          const indented = selectedText.split('\n').map(l => '    ' + l).join('\n');
+          textarea.value = val2.substring(0, lineStart) + indented + val2.substring(actualEnd);
+          textarea.selectionStart = lineStart;
+          textarea.selectionEnd = lineStart + indented.length;
+        } else {
+          const spaces = '    ';
+          textarea.value = val2.substring(0, start2) + spaces + val2.substring(end2);
+          textarea.selectionStart = textarea.selectionEnd = start2 + 4;
+        }
+      } else {
+        // Shift+Tab: 减少缩进
+        const lineStart2 = val2.lastIndexOf('\n', start2 - 1) + 1;
+        const lineEnd2 = val2.indexOf('\n', end2 - 1);
+        const actualEnd2 = lineEnd2 === -1 ? val2.length : lineEnd2;
+        const selectedText = val2.substring(lineStart2, actualEnd2);
+        const dedented = selectedText.split('\n').map(l => l.replace(/^ {1,4}/, '')).join('\n');
+        textarea.value = val2.substring(0, lineStart2) + dedented + val2.substring(actualEnd2);
+        textarea.selectionStart = lineStart2;
+        textarea.selectionEnd = lineStart2 + dedented.length;
+      }
+      onInput();
+    }
+
+    // Enter: auto-indent
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const start3 = textarea.selectionStart;
+      const val3 = textarea.value;
+      const lineStart3 = val3.lastIndexOf('\n', start3 - 1) + 1;
+      const prevLine = val3.substring(lineStart3, start3);
+      const indent = prevLine.match(/^(\s*)/)[1];
+      // 如果上一行以 { [ ( : 结尾，增加缩进
+      let extraIndent = '';
+      const trimmed = prevLine.trimEnd();
+      if (/[{\[(:]\s*$/.test(trimmed) && !/^\s*\/\//.test(trimmed)) {
+        extraIndent = '    ';
+      }
+      textarea.value = val3.substring(0, start3) + '\n' + indent + extraIndent + val3.substring(start3);
+      textarea.selectionStart = textarea.selectionEnd = start3 + 1 + indent.length + extraIndent.length;
+      onInput();
+    }
+
+    // Ctrl+/ : 切换行注释
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      toggleLineComment();
+    }
+  });
+
+  // 全局快捷键
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      switch(e.key.toLowerCase()) {
+        case 's': e.preventDefault(); saveFile(); break;
+        case 'n': e.preventDefault(); newFile(); break;
+        case 'o': e.preventDefault(); openFile(); break;
+        case 'f': e.preventDefault(); toggleFind(); break;
+        case 'h': e.preventDefault(); toggleFind(); break;
+        case 'z': e.preventDefault(); undo(); break;
+        case 'y': e.preventDefault(); redo(); break;
+        case 'w': e.preventDefault(); closeTab(state.activeTabIdx); break;
+        case 'd': e.preventDefault(); duplicateLine(); break;
+      }
+    }
+    if (e.key === 'Escape' && state.findVisible) {
+      toggleFind();
+    }
+    // Ctrl+Tab / Ctrl+Shift+Tab 切换标签页
+    if (e.ctrlKey && e.key === 'Tab') {
+      e.preventDefault();
+      const dir = e.shiftKey ? -1 : 1;
+      const newIdx = (state.activeTabIdx + dir + state.tabs.length) % state.tabs.length;
+      switchTab(newIdx);
+    }
+  });
+
+  // 点击查找栏外部关闭
+  document.addEventListener('click', (e) => {
+    if (state.findVisible && !findBar.contains(e.target) &&
+        e.target !== textarea && !e.target.closest('#toolbar button')) {
+      // 不关闭，因为用户可能在编辑器中点击
+    }
+  });
+
+  // 窗口关闭前提示
+  window.addEventListener('beforeunload', (e) => {
+    if (state.tabs.some(t => t.modified)) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  updateTheme();
+  highlight();
+  updateGutter();
+  updateCursor();
+  updateStatusBar();
+}
+
+// ==================== 标签页管理 ====================
+function newFile() {
+  // 避免与已有标签重名：取现有 Untitled-N 的最大编号 + 1
+  let maxN = 0;
+  for (const t of state.tabs) {
+    const m = /^Untitled-(\d+)$/.exec(t.name);
+    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+  }
+  const tab = {
+    id: Date.now(),
+    name: 'Untitled-' + (maxN + 1),
+    language: 'plaintext',
+    content: '',
+    modified: false,
+    fileHandle: null,
+    filePath: null,
+  };
+  state.tabs.push(tab);
+  switchTab(state.tabs.length - 1);
+  textarea.focus();
+}
+
+function switchTab(idx) {
+  if (idx < 0 || idx >= state.tabs.length) return;
+  // 保存当前标签页内容
+  if (state.activeTabIdx >= 0 && state.activeTabIdx < state.tabs.length) {
+    const cur = state.tabs[state.activeTabIdx];
+    cur.content = textarea.value;
+  }
+  state.activeTabIdx = idx;
+  const tab = state.tabs[idx];
+  textarea.value = tab.content || '';
+  langSelect.value = tab.language;
+  state.lastContent = tab.content || '';
+  state.undoStack = [];
+  state.redoStack = [];
+  renderTabs();
+  highlight();
+  updateGutter();
+  updateCursor();
+  updateStatusBar();
+  textarea.focus();
+}
+
+function closeTab(idx) {
+  if (idx < 0 || idx >= state.tabs.length) idx = state.activeTabIdx;
+  const tab = state.tabs[idx];
+  if (tab.pinned) {
+    showToast(t('已置顶标签页无法关闭，请先取消置顶'));
+    return;
+  }
+  if (tab.modified) {
+    if (!confirm(tf('"{name}" 有未保存的更改，确认关闭？', { name: tab.name }))) return;
+  }
+  // 只剩一个标签时：就地重置为空文件，不新增重复标签
+  if (state.tabs.length <= 1) {
+    tab.content = '';
+    tab.modified = false;
+    tab.fileHandle = null;
+    tab.filePath = null;
+    state.activeTabIdx = idx;
+    textarea.value = '';
+    state.lastContent = '';
+    state.undoStack = [];
+    state.redoStack = [];
+    renderTabs();
+    highlight();
+    updateGutter();
+    updateCursor();
+    updateStatusBar();
+    textarea.focus();
+    return;
+  }
+  state.tabs.splice(idx, 1);
+  if (state.activeTabIdx >= state.tabs.length) {
+    state.activeTabIdx = state.tabs.length - 1;
+  }
+  if (state.activeTabIdx === idx) {
+    switchTab(Math.min(idx, state.tabs.length - 1));
+  } else {
+    renderTabs();
+  }
+}
+
+// ==================== 标签页拖拽排序 ====================
+let _dragTabIdx = -1;
+
+function renderTabs() {
+  // 回调内参数 t 为标签对象，遮蔽全局 t()，故先求值置顶后缀
+  const pinnedSuffix = t(' [已置顶]');
+  tabsContainer.innerHTML = state.tabs.map((t, i) =>
+    `<div class="tab ${i === state.activeTabIdx ? 'active' : ''} ${t.modified ? 'modified' : ''} ${t.pinned ? 'pinned' : ''}"
+          onclick="switchTab(${i})" oncontextmenu="event.preventDefault();showTabContextMenu(event,${i})"
+          draggable="${t.pinned ? 'false' : 'true'}"
+          ondragstart="event.dataTransfer.setData('text/plain','${i}');_dragTabIdx=${i};event.dataTransfer.effectAllowed='move';this.style.opacity='0.5'"
+          ondragend="this.style.opacity='';_dragTabIdx=-1;document.querySelectorAll('#tabs .tab').forEach(e=>e.classList.remove('drag-over'))"
+          ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="event.preventDefault();this.classList.remove('drag-over');tabDrop(event,${i})"
+          title="${t.name}${t.pinned ? pinnedSuffix : ''}">
+      <span class="tab-pin">📌</span>
+      <span class="tab-name">${escapeHtml(t.name)}</span>
+      <span class="tab-close" onclick="event.stopPropagation();closeTab(${i})">×</span>
+    </div>`
+  ).join('');
+}
+
+function tabDrop(e, targetIdx) {
+  const fromIdx = _dragTabIdx;
+  if (fromIdx < 0 || fromIdx === targetIdx) return;
+  const moved = state.tabs[fromIdx];
+  if (moved.pinned) return; // 置顶tab不可拖拽
+  // 限制目标位置不能进入置顶区域
+  const lastPinnedIdx = state.tabs.reduce((last, t, i) => t.pinned ? i : last, -1);
+  const minTarget = lastPinnedIdx + (fromIdx > lastPinnedIdx ? 1 : 0);
+  if (targetIdx <= lastPinnedIdx) return;
+  state.tabs.splice(fromIdx, 1);
+  state.tabs.splice(targetIdx, 0, moved);
+  // 调整 activeTabIdx
+  if (state.activeTabIdx === fromIdx) {
+    state.activeTabIdx = targetIdx;
+  } else if (fromIdx < state.activeTabIdx && targetIdx >= state.activeTabIdx) {
+    state.activeTabIdx--;
+  } else if (fromIdx > state.activeTabIdx && targetIdx <= state.activeTabIdx) {
+    state.activeTabIdx++;
+  }
+  switchTab(state.activeTabIdx);
+}
+
+// ==================== 标签页右键菜单 ====================
+let _ctxMenuTabIdx = -1;
+
+function showTabContextMenu(e, idx) {
+  _ctxMenuTabIdx = idx;
+  const tab = state.tabs[idx];
+  const isPinned = !!tab.pinned;
+  let menu = document.getElementById('tab-context-menu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.id = 'tab-context-menu';
+    menu.innerHTML = `
+      <div class="ctx-item" data-action="pin" onclick="togglePinTab()">${t('置顶')}</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" data-action="close" onclick="closeTab(-1)">${t('关闭')} <span class="ctx-shortcut">Ctrl+W</span></div>
+      <div class="ctx-item" data-action="delete" onclick="deleteTab()">${t('删除')}</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item danger" data-action="closeOther" onclick="closeOtherTabs()">${t('关闭其他')}</div>
+      <div class="ctx-item danger" data-action="closeRight" onclick="closeRightTabs()">${t('关闭右侧')}</div>
+      <div class="ctx-item danger" data-action="closeAll" onclick="closeAllTabs()">${t('关闭所有')}</div>
+    `;
+    document.body.appendChild(menu);
+  }
+  // 更新菜单项状态
+  const items = menu.querySelectorAll('.ctx-item');
+  const pinItem = [...items].find(el => el.getAttribute('data-action') === 'pin');
+  if (pinItem) {
+    pinItem.textContent = isPinned ? t('取消置顶') : t('置顶');
+    pinItem.setAttribute('onclick', `togglePinTab(${idx})`);
+  }
+  const closeItem = [...items].find(el => el.getAttribute('data-action') === 'close');
+  if (closeItem) closeItem.setAttribute('onclick', `closeTab(${idx})`);
+  const deleteItem = [...items].find(el => el.getAttribute('data-action') === 'delete');
+  if (deleteItem) deleteItem.setAttribute('onclick', `deleteTab(${idx})`);
+  const rightItem = [...items].find(el => el.getAttribute('data-action') === 'closeRight');
+  if (rightItem) rightItem.style.display = (idx < state.tabs.length - 1) ? '' : 'none';
+
+  menu.style.display = 'block';
+  const x = Math.min(e.clientX, window.innerWidth - 180);
+  const y = Math.min(e.clientY, window.innerHeight - 220);
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+
+  // 全局点击关闭
+  setTimeout(() => {
+    document.addEventListener('click', hideTabContextMenu, { once: true });
+    document.addEventListener('contextmenu', hideTabContextMenu, { once: true });
+  }, 0);
+}
+
+function togglePinTab(idx) {
+  if (idx == null) idx = _ctxMenuTabIdx;
+  if (idx < 0 || idx >= state.tabs.length) return;
+  const tab = state.tabs[idx];
+  tab.pinned = !tab.pinned;
+  // 置顶tab移到最前面；取消置顶移到所有置顶tab之后
+  const [moved] = state.tabs.splice(idx, 1);
+  if (moved.pinned) {
+    const lastPinned = state.tabs.reduce((last, t, i) => t.pinned ? i : last, -1);
+    state.tabs.splice(lastPinned + 1, 0, moved);
+    state.activeTabIdx = lastPinned + 1;
+  } else {
+    const firstUnpinned = state.tabs.findIndex(t => !t.pinned);
+    const insertAt = firstUnpinned >= 0 ? firstUnpinned : state.tabs.length;
+    state.tabs.splice(insertAt, 0, moved);
+    state.activeTabIdx = insertAt;
+  }
+  renderTabs();
+  hideTabContextMenu();
+  showToast(moved.pinned ? tf('已置顶: {name}', { name: moved.name }) : tf('已取消置顶: {name}', { name: moved.name }));
+}
+
+function deleteTab(idx) {
+  if (idx == null) idx = _ctxMenuTabIdx;
+  if (idx < 0 || idx >= state.tabs.length) return;
+  const tab = state.tabs[idx];
+  if (tab.pinned) {
+    showToast(t('已置顶标签页无法删除，请先取消置顶'));
+    hideTabContextMenu();
+    return;
+  }
+  if (!confirm(tf('确认删除标签页 "{name}"？', { name: tab.name }))) return;
+  closeTab(idx);
+  hideTabContextMenu();
+}
+
+function hideTabContextMenu() {
+  const menu = document.getElementById('tab-context-menu');
+  if (menu) menu.style.display = 'none';
+}
+
+function closeOtherTabs() {
+  const idx = _ctxMenuTabIdx;
+  if (idx < 0 || idx >= state.tabs.length) return;
+  // 从右向左删，避免索引偏移；跳过置顶tab
+  for (let i = state.tabs.length - 1; i >= 0; i--) {
+    if (i === idx || state.tabs[i].pinned) continue;
+    const tab = state.tabs[i];
+    if (tab.modified && !confirm(tf('"{name}" 有未保存的更改，确认关闭？', { name: tab.name }))) continue;
+    state.tabs.splice(i, 1);
+    if (i < idx) _ctxMenuTabIdx--;
+  }
+  state.activeTabIdx = state.tabs.indexOf(state.tabs[idx]) >= 0 ? state.tabs.indexOf(state.tabs[idx]) : 0;
+  switchTab(state.activeTabIdx);
+  hideTabContextMenu();
+}
+
+function closeRightTabs() {
+  const idx = _ctxMenuTabIdx;
+  if (idx < 0 || idx >= state.tabs.length) return;
+  for (let i = state.tabs.length - 1; i > idx; i--) {
+    const tab = state.tabs[i];
+    if (tab.pinned) continue;
+    if (tab.modified && !confirm(tf('"{name}" 有未保存的更改，确认关闭？', { name: tab.name }))) continue;
+    state.tabs.splice(i, 1);
+  }
+  if (state.activeTabIdx >= state.tabs.length) state.activeTabIdx = state.tabs.length - 1;
+  if (state.activeTabIdx !== idx) switchTab(idx); else renderTabs();
+  hideTabContextMenu();
+}
+
+function closeAllTabs() {
+  const pinnedTabs = state.tabs.filter(t => t.pinned);
+  const modifiedUnpinned = state.tabs.filter(t => t.modified && !t.pinned);
+  if (modifiedUnpinned.length > 0 && !confirm(tf('{n} 个未置顶文件有未保存的更改，确认关闭？', { n: modifiedUnpinned.length }))) return;
+  if (pinnedTabs.length > 0) {
+    if (!confirm(tf('还有 {n} 个置顶标签页，将保留。确认关闭其他？', { n: pinnedTabs.length }))) return;
+  }
+  if (pinnedTabs.length > 0) {
+    state.tabs = pinnedTabs.map(t => ({ ...t, modified: false }));
+    state.activeTabIdx = 0;
+    switchTab(0);
+  } else {
+    state.tabs = [{ id: Date.now(), name: 'Untitled-1', language: 'plaintext', content: '', modified: false, fileHandle: null, filePath: '' }];
+    state.activeTabIdx = 0;
+    switchTab(0);
+  }
+  hideTabContextMenu();
+}
+
+// ==================== 文件操作 ====================
+async function openFile() {
+  try {
+    const fileHandles = await window.showOpenFilePicker({
+      types: [{
+        description: t('所有文件'),
+        accept: { 'text/*': uniqueLangs.map(l => l.ext).filter(Boolean) }
+      }],
+      multiple: true,
+    });
+    let opened = 0, skipped = 0;
+    for (const fileHandle of fileHandles) {
+      const file = await fileHandle.getFile();
+      const content = await file.text();
+      // 检测是否已打开
+      const existingIdx = state.tabs.findIndex(t => t.filePath === file.name && t.content === content);
+      if (existingIdx >= 0) {
+        switchTab(existingIdx);
+        skipped++;
+        continue;
+      }
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      const lang = extMap[ext] || detectLanguage(file.name, content);
+      const tab = {
+        id: Date.now() + Math.random(),
+        name: file.name,
+        language: lang,
+        content: content,
+        modified: false,
+        fileHandle: fileHandle,
+        filePath: file.name,
+      };
+      state.tabs.push(tab);
+      opened++;
+    }
+    if (opened > 0) switchTab(state.tabs.length - 1);
+    const msgs = [];
+    if (opened > 0) msgs.push(tf('已打开 {n} 个文件', { n: opened }));
+    if (skipped > 0) msgs.push(tf('{n} 个已打开(跳过)', { n: skipped }));
+    showToast(msgs.join(t('，')));
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      // 降级：使用传统文件输入
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = 'text/*,.js,.ts,.py,.java,.cpp,.c,.cs,.go,.rs,.rb,.php,.swift,.kt,.dart,.lua,.html,.xml,.css,.scss,.less,.json,.yaml,.yml,.toml,.ini,.csv,.md,.tex,.sql,.graphql,.sh,.ps1,.bat,.cmd,.conf,.proto,.sol,.r,.hs,.ex,.clj,.erl,.m,.vb,.fs,.jl,.tcl,.vhd,.v,.scm,.lisp,.pl,.awk,.sed,.diff,.log,.txt';
+      input.onchange = async (ev) => {
+        const files = ev.target.files;
+        if (!files || files.length === 0) return;
+        let opened = 0, skipped = 0;
+        for (const file of files) {
+          const content = await file.text();
+          const existingIdx = state.tabs.findIndex(t => t.filePath === file.name && t.content === content);
+          if (existingIdx >= 0) { switchTab(existingIdx); skipped++; continue; }
+          const ext = '.' + file.name.split('.').pop().toLowerCase();
+          const lang = extMap[ext] || detectLanguage(file.name, content);
+          state.tabs.push({
+            id: Date.now() + Math.random(), name: file.name, language: lang,
+            content, modified: false, fileHandle: null, filePath: file.name,
+          });
+          opened++;
+        }
+        if (opened > 0) switchTab(state.tabs.length - 1);
+        const msgs = [];
+        if (opened > 0) msgs.push(tf('已打开 {n} 个文件', { n: opened }));
+        if (skipped > 0) msgs.push(tf('{n} 个已打开(跳过)', { n: skipped }));
+        showToast(msgs.join(t('，')));
+      };
+      input.click();
+    }
+  }
+}
+
+async function saveFile() {
+  const tab = state.tabs[state.activeTabIdx];
+  if (!tab) return;
+  tab.content = textarea.value;
+
+  if (tab.fileHandle) {
+    try {
+      const writable = await tab.fileHandle.createWritable();
+      await writable.write(tab.content);
+      await writable.close();
+      tab.modified = false;
+      renderTabs();
+      updateStatusBar();
+      showToast(tf('已保存: {name}', { name: tab.name }));
+    } catch (e) {
+      saveAs();
+    }
+  } else {
+    saveAs();
+  }
+}
+
+async function saveAs() {
+  const tab = state.tabs[state.activeTabIdx];
+  if (!tab) return;
+  const ext = uniqueLangs.find(l => l.id === tab.language)?.ext || '.txt';
+  try {
+    const fileHandle = await window.showSaveFilePicker({
+      suggestedName: tab.name || 'untitled' + ext,
+      types: [{ description: t('文本文件'), accept: { 'text/plain': [ext] } }],
+    });
+    const writable = await fileHandle.createWritable();
+    await writable.write(textarea.value);
+    await writable.close();
+    tab.fileHandle = fileHandle;
+    tab.filePath = fileHandle.name;
+    tab.name = fileHandle.name;
+    tab.modified = false;
+    tab.content = textarea.value;
+    // 更新语言
+    const fext = '.' + tab.name.split('.').pop().toLowerCase();
+    if (extMap[fext]) tab.language = extMap[fext];
+    langSelect.value = tab.language;
+    renderTabs();
+    updateStatusBar();
+    highlight();
+    showToast(tf('已保存: {name}', { name: tab.name }));
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      // 降级方案：Blob 下载
+      const blob = new Blob([textarea.value], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = tab.name || 'untitled' + ext;
+      a.click(); URL.revokeObjectURL(url);
+      tab.modified = false;
+      renderTabs();
+      updateStatusBar();
+      showToast(tf('已下载: {name}', { name: a.download }));
+    }
+  }
+}
+
+function detectLanguage(filename, content) {
+  const ext = '.' + filename.split('.').pop().toLowerCase();
+  if (extMap[ext]) return extMap[ext];
+  if (filename.toLowerCase() === 'dockerfile') return 'dockerfile';
+  if (filename.toLowerCase() === 'makefile') return 'makefile';
+  // 根据内容推断
+  if (content.startsWith('#!/bin/bash') || content.startsWith('#!/bin/sh')) return 'bash';
+  if (content.startsWith('#!/usr/bin/env python')) return 'python';
+  if (content.startsWith('#!/usr/bin/env node')) return 'javascript';
+  if (content.startsWith('<?xml') || content.startsWith('<html') || content.startsWith('<!DOCTYPE')) return 'html';
+  if (content.trim().startsWith('{') && content.trim().endsWith('}')) return 'json';
+  if (content.trim().startsWith('<')) return 'xml';
+  return 'plaintext';
+}
+
+// ==================== 编辑器核心 ====================
+let _highlightTimer = null;
+
+function onInput() {
+  const tab = state.tabs[state.activeTabIdx];
+  if (!tab) return;
+  const val = textarea.value;
+  if (val !== state.lastContent) {
+    if (!tab.modified) {
+      tab.modified = true;
+      renderTabs();
+    }
+    // Undo 栈
+    state.undoStack.push(state.lastContent);
+    if (state.undoStack.length > 200) state.undoStack.shift();
+    state.redoStack = [];
+    state.lastContent = val;
+  }
+  updateGutter();
+  updateCursor();
+  // 防抖高亮，提升大文件编辑性能
+  clearTimeout(_highlightTimer);
+  _highlightTimer = setTimeout(highlight, 80);
+}
+
+function highlight() {
+  const code = textarea.value;
+  if (!code.trim()) {
+    highlightLayer.innerHTML = '';
+    return;
+  }
+  try {
+    const lang = state.tabs[state.activeTabIdx]?.language || 'plaintext';
+    const hlLang = mapLanguage(lang);
+    let result;
+    if (hlLang === 'plaintext') {
+      result = hljs.highlightAuto(code).value;
+    } else {
+      result = hljs.highlight(code, { language: hlLang, ignoreIllegals: true }).value;
+    }
+    highlightLayer.innerHTML = result;
+  } catch (e) {
+    highlightLayer.textContent = code;
+  }
+}
+
+function mapLanguage(lang) {
+  const map = {
+    'cpp': 'c++',
+    'csharp': 'csharp',
+    'objectivec': 'objectivec',
+    'vbnet': 'vbnet',
+    'fsharp': 'fsharp',
+    'dos': 'dos',
+    'cmd': 'dos',
+    'plaintext': 'plaintext',
+    'properties': 'ini',
+    'zsh': 'bash',
+    'protobuf': 'protobuf',
+    'solidity': 'solidity',
+    'svelte': 'xml',
+    'vue': 'xml',
+    'diff': 'diff',
+    'thrift': 'thrift',
+    'gradle': 'groovy',
+    'awk': 'bash',
+    'sed': 'bash',
+    'matlab': 'matlab',
+    'fortran': 'fortran',
+    'cobol': 'plaintext',
+    'pascal': 'pascal',
+    'vhdl': 'vhdl',
+    'verilog': 'verilog',
+    'scheme': 'scheme',
+    'lisp': 'lisp',
+    'prolog': 'prolog',
+    'tcl': 'tcl',
+    'log': 'plaintext',
+    'makefile': 'makefile',
+    'cmake': 'cmake',
+    'apache': 'apache',
+    'graphql': 'graphql',
+    'julia': 'julia',
+    'erlang': 'erlang',
+    'elixir': 'elixir',
+    'haskell': 'haskell',
+    'clojure': 'clojure',
+    'dart': 'dart',
+    'scala': 'scala',
+    'kotlin': 'kotlin',
+    'nginx': 'nginx',
+  };
+  return map[lang] || lang;
+}
+
+function updateGutter() {
+  const tab = state.tabs[state.activeTabIdx];
+  const lines = textarea.value.split('\n');
+  const count = Math.max(lines.length, 1);
+  // 检查当前激活行高亮
+  let activeLine = -1;
+  const pos = textarea.selectionStart;
+  const before = textarea.value.substring(0, pos);
+  activeLine = before.split('\n').length - 1;
+
+  gutter.innerHTML = Array.from({length: count}, (_, i) => {
+    return `<div class="gutter-line${i === activeLine ? ' active' : ''}" data-idx="${i}"
+      draggable="true"
+      ondragstart="gutterDragStart(event,${i})"
+      ondragover="gutterDragOver(event)"
+      ondragleave="gutterDragLeave(event)"
+      ondrop="gutterDrop(event,${i})"
+      ondragend="gutterDragEnd(event)"
+      ondblclick="gotoLineStart(${i})">
+      <span class="gutter-num">${i + 1}</span>
+    </div>`;
+  }).join('');
+}
+
+// ==================== 行拖拽排序 ====================
+function gutterDragStart(e, idx) {
+  e.dataTransfer.setData('text/plain', idx);
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+  // 设置拖拽图像为半透明
+  try { e.dataTransfer.setDragImage(e.currentTarget, 30, 10); } catch(_) {}
+}
+function gutterDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drag-over'); }
+function gutterDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+function gutterDrop(e, targetIdx) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+  if (isNaN(fromIdx) || fromIdx === targetIdx) return;
+
+  const tab = state.tabs[state.activeTabIdx];
+  const lines = textarea.value.split('\n');
+
+  // 移动行内容
+  const [movedLine] = lines.splice(fromIdx, 1);
+  lines.splice(targetIdx, 0, movedLine);
+
+  textarea.value = lines.join('\n');
+  tab.modified = true;
+  updateGutter();
+  highlight();
+  renderTabs();
+  showToast(tf('行 {from} → {to}', { from: fromIdx + 1, to: targetIdx + 1 }));
+}
+
+function gutterDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+
+function gotoLineStart(idx) {
+  const lines = textarea.value.split('\n');
+  let pos = 0;
+  for (let i = 0; i < idx; i++) pos += lines[i].length + 1;
+  textarea.setSelectionRange(pos, pos);
+  textarea.focus();
+  updateCursor();
+  updateGutter();
+}
+
+function syncScroll() {
+  gutter.scrollTop = editorScroll.scrollTop;
+  highlightLayer.style.top = -editorScroll.scrollTop + 'px';
+  highlightLayer.style.left = -editorScroll.scrollLeft + 'px';
+}
+
+function updateCursor() {
+  const pos = textarea.selectionStart;
+  const val = textarea.value;
+  const before = val.substring(0, pos);
+  const line = before.split('\n').length;
+  const col = pos - before.lastIndexOf('\n');
+  $('#status-position').textContent = tf('行 {line}, 列 {col}', { line, col });
+  const totalLines = val.split('\n').length;
+  $('#status-lines').textContent = tf('共 {n} 行', { n: totalLines });
+  // 更新gutter激活行高亮
+  const gutterLines = gutter.querySelectorAll('.gutter-line');
+  gutterLines.forEach(el => {
+    const idx = parseInt(el.getAttribute('data-idx'));
+    el.classList.toggle('active', idx === line - 1);
+  });
+}
+
+function updateStatusBar() {
+  const tab = state.tabs[state.activeTabIdx];
+  const langName = uniqueLangs.find(l => l.id === tab?.language)?.name || 'Plain Text';
+  $('#status-lang').textContent = langName;
+  $('#status-indent').textContent = t('空格: 4');
+  updateCursor();
+}
+
+// ==================== 撤销/重做 ====================
+function undo() {
+  if (state.undoStack.length === 0) return;
+  state.redoStack.push(textarea.value);
+  const prev = state.undoStack.pop();
+  textarea.value = prev;
+  state.lastContent = prev;
+  highlight();
+  updateGutter();
+  updateCursor();
+}
+
+function redo() {
+  if (state.redoStack.length === 0) return;
+  state.undoStack.push(textarea.value);
+  const next = state.redoStack.pop();
+  textarea.value = next;
+  state.lastContent = next;
+  highlight();
+  updateGutter();
+  updateCursor();
+}
+
+function duplicateLine() {
+  const val = textarea.value;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = val.indexOf('\n', end);
+  const actualEnd = lineEnd === -1 ? val.length : lineEnd;
+  const line = val.substring(lineStart, actualEnd);
+  const insert = (lineEnd === -1 ? '\n' : '') + line;
+  textarea.value = val.substring(0, actualEnd) + insert + val.substring(actualEnd);
+  textarea.selectionStart = textarea.selectionEnd = actualEnd + 1;
+  onInput();
+}
+
+function toggleLineComment() {
+  const val = textarea.value;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = val.indexOf('\n', end - 1);
+  const actualEnd = lineEnd === -1 ? val.length : lineEnd;
+
+  const lang = state.tabs[state.activeTabIdx]?.language || 'plaintext';
+  // 不同语言的注释前缀
+  const commentMap = {
+    javascript:'//', typescript:'//', java:'//', cpp:'//', c:'//', csharp:'//',
+    go:'//', rust:'//', dart:'//', kotlin:'//', scala:'//', swift:'//',
+    php:'//', svelte:'//', vue:'//', jsx:'//', tsx:'//', solidity:'//',
+    groovy:'//', verilog:'//',
+    python:'#', ruby:'#', perl:'#', bash:'#', zsh:'#', yaml:'#',
+    toml:'#', ini:'#', dockerfile:'#', cmake:'#', makefile:'#',
+    r:'#', awk:'#', sed:'#', tcl:'#',
+    sql:'--', haskell:'--', lua:'--', elixir:'#', erlang:'%',
+    powershell:'#', dos:'REM ',
+    html:'<!-- ', xml:'<!-- ',
+  };
+  const prefix = commentMap[lang] || '//';
+
+  const selectedText = val.substring(lineStart, actualEnd);
+  const lines = selectedText.split('\n');
+
+  if (prefix === '<!-- ') {
+    // HTML/XML block comment
+    const commented = '<!-- ' + selectedText + ' -->';
+    textarea.value = val.substring(0, lineStart) + commented + val.substring(actualEnd);
+    textarea.selectionStart = lineStart;
+    textarea.selectionEnd = lineStart + commented.length;
+  } else {
+    // 检测是否全部已注释
+    const allCommented = lines.every(l => l.trimStart().startsWith(prefix));
+    const newLines = lines.map(l => {
+      if (allCommented) {
+        // 取消注释
+        return l.replace(new RegExp('^\\s*' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s?'), l.match(/^\s*/)[0]);
+      } else {
+        return l.replace(/^(\s*)/, '$1' + prefix + ' ');
+      }
+    });
+    const newText = newLines.join('\n');
+    textarea.value = val.substring(0, lineStart) + newText + val.substring(actualEnd);
+    const adjust = allCommented ? -(prefix.length + 1) : (prefix.length + 1);
+    textarea.selectionStart = Math.max(lineStart, start + (allCommented ? Math.min(0, adjust) : adjust));
+    textarea.selectionEnd = textarea.selectionStart + newText.length;
+  }
+  onInput();
+}
+
+// ==================== 查找替换 ====================
+function toggleFind() {
+  state.findVisible = !state.findVisible;
+  if (state.findVisible) {
+    findBar.classList.add('visible');
+    findInput.focus();
+    findInput.select();
+    // 预填选中文本
+    const sel = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+    if (sel) findInput.value = sel;
+    doFind();
+  } else {
+    findBar.classList.remove('visible');
+    clearFindHighlights();
+    highlight();
+  }
+}
+
+function doFind() {
+  const query = findInput.value;
+  const code = textarea.value;
+
+  // Always preserve syntax highlighting
+  if (!query) {
+    findCount.textContent = '';
+    clearFindHighlights();
+    highlight();
+    return;
+  }
+
+  const caseSensitive = $('#find-case').checked;
+  const useRegex = $('#find-regex').checked;
+  const wholeWord = $('#find-whole').checked;
+
+  let pattern;
+  try {
+    if (useRegex) {
+      pattern = new RegExp(query, 'g' + (caseSensitive ? '' : 'i'));
+    } else {
+      let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (wholeWord) escaped = '\\b' + escaped + '\\b';
+      pattern = new RegExp(escaped, 'g' + (caseSensitive ? '' : 'i'));
+    }
+  } catch (e) {
+    findCount.textContent = t('无效');
+    highlight();
+    return;
+  }
+
+  const matches = [...code.matchAll(pattern)];
+  findCount.textContent = matches.length ? `1 / ${matches.length}` : t('无结果');
+
+  // Navigate to first match
+  if (matches.length > 0) {
+    textarea.focus();
+    textarea.setSelectionRange(matches[0].index, matches[0].index + matches[0][0].length);
+    scrollToPosition(matches[0].index);
+    applyFindHighlights(matches);
+  } else {
+    clearFindHighlights();
+  }
+}
+
+function applyFindHighlights(matches) {
+  // Overlay find highlights on top of syntax-highlighted content
+  const code = textarea.value;
+  let html = highlightLayer.innerHTML;
+
+  // Build a highlighted version by wrapping matches
+  // We need to process the raw code rather than HTML to avoid breaking tags
+  // Strategy: build HTML from scratch with both syntax AND find highlights
+  const lang = state.tabs[state.activeTabIdx]?.language || 'plaintext';
+  const hlLang = mapLanguage(lang);
+  let result;
+  try {
+    if (hlLang === 'plaintext') {
+      result = hljs.highlightAuto(code).value;
+    } else {
+      result = hljs.highlight(code, { language: hlLang, ignoreIllegals: true }).value;
+    }
+
+    // Now insert <mark> tags around matches in the HTML result
+    // We locate matches by text position and insert marks around them
+    if (matches.length > 0) {
+      let plainPositions = findTextPositionsInHtml(result);
+      if (plainPositions && plainPositions.length >= code.length) {
+        let out = '';
+        let lastIdx = 0;
+        for (const m of matches) {
+          const s = m.index;
+          const e = s + m[0].length;
+          if (s < plainPositions.length && e <= plainPositions.length) {
+            const htmlStart = plainPositions[s];
+            const htmlEnd = plainPositions[Math.min(e, plainPositions.length - 1)] + 1;
+            out += result.substring(lastIdx, htmlStart);
+            out += '<mark class="find-match">';
+            out += result.substring(htmlStart, htmlEnd);
+            out += '</mark>';
+            lastIdx = htmlEnd;
+          }
+        }
+        out += result.substring(lastIdx);
+        highlightLayer.innerHTML = out;
+      } else {
+        // Fallback: use simpler approach
+        let out = '';
+        let lastCharIdx = 0;
+        let htmlIdx = 0;
+        // Strip tags to find plain text
+        const stripped = result.replace(/<[^>]*>/g, '');
+        for (const m of matches) {
+          const s = m.index;
+          const e = s + m[0].length;
+          // Find position in HTML (approximate)
+          let htmlStart = mapPlainToHtml(result, s);
+          let htmlEnd = mapPlainToHtml(result, e);
+          if (htmlStart >= 0 && htmlEnd >= 0) {
+            out += result.substring(lastCharIdx, htmlStart);
+            out += '<mark class="find-match" style="background:var(--find-match);border-radius:2px;">' + result.substring(htmlStart, htmlEnd) + '</mark>';
+            lastCharIdx = htmlEnd;
+          }
+        }
+        if (lastCharIdx > 0) {
+          out += result.substring(lastCharIdx);
+          highlightLayer.innerHTML = out;
+        }
+      }
+    } else {
+      highlightLayer.innerHTML = result;
+    }
+  } catch (e) {
+    highlightLayer.textContent = code;
+  }
+}
+
+function mapPlainToHtml(html, plainPos) {
+  let plainIdx = 0;
+  let inTag = false;
+  for (let i = 0; i < html.length; i++) {
+    if (html[i] === '<') inTag = true;
+    if (!inTag) {
+      if (plainIdx === plainPos) return i;
+      plainIdx++;
+    }
+    if (html[i] === '>') inTag = false;
+  }
+  if (plainIdx === plainPos) return html.length;
+  return -1;
+}
+
+function findTextPositionsInHtml(html) {
+  const positions = [];
+  let inTag = false;
+  for (let i = 0; i < html.length; i++) {
+    if (html[i] === '<') inTag = true;
+    if (!inTag) positions.push(i);
+    if (html[i] === '>') inTag = false;
+  }
+  return positions;
+}
+
+function clearFindHighlights() {
+  highlight();
+}
+
+function findNext() {
+  navigateFind(1);
+}
+
+function findPrev() {
+  navigateFind(-1);
+}
+
+function navigateFind(dir) {
+  const query = findInput.value;
+  if (!query) return;
+  const code = textarea.value;
+  const caseSensitive = $('#find-case').checked;
+  const useRegex = $('#find-regex').checked;
+  const wholeWord = $('#find-whole').checked;
+
+  let pattern;
+  try {
+    if (useRegex) {
+      pattern = new RegExp(query, 'g' + (caseSensitive ? '' : 'i'));
+    } else {
+      let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (wholeWord) escaped = '\\b' + escaped + '\\b';
+      pattern = new RegExp(escaped, 'g' + (caseSensitive ? '' : 'i'));
+    }
+  } catch (e) { return; }
+
+  const matches = [...code.matchAll(pattern)];
+  if (matches.length === 0) return;
+
+  const curPos = textarea.selectionStart;
+  let idx = 0;
+  if (dir === 1) {
+    for (let i = 0; i < matches.length; i++) {
+      if (matches[i].index > curPos) { idx = i; break; }
+    }
+  } else {
+    for (let i = matches.length - 1; i >= 0; i--) {
+      if (matches[i].index < curPos) { idx = i; break; }
+      idx = matches.length - 1;
+    }
+  }
+
+  const m = matches[idx];
+  textarea.setSelectionRange(m.index, m.index + m[0].length);
+  scrollToPosition(m.index);
+  findCount.textContent = `${idx + 1} / ${matches.length}`;
+}
+
+function replaceOne() {
+  const query = findInput.value;
+  const replacement = $('#replace-input').value;
+  const sel = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+  if (sel && query) {
+    const code = textarea.value;
+    const caseSensitive = $('#find-case').checked;
+    if (!caseSensitive) {
+      if (sel.toLowerCase() === query.toLowerCase()) {
+        textarea.value = code.substring(0, textarea.selectionStart) + replacement +
+                        code.substring(textarea.selectionEnd);
+        textarea.selectionStart = textarea.selectionEnd = textarea.selectionStart + replacement.length;
+      }
+    } else {
+      if (sel === query) {
+        textarea.value = code.substring(0, textarea.selectionStart) + replacement +
+                        code.substring(textarea.selectionEnd);
+        textarea.selectionStart = textarea.selectionEnd = textarea.selectionStart + replacement.length;
+      }
+    }
+    onInput();
+  }
+  doFind();
+  textarea.focus();
+}
+
+function replaceAll() {
+  const query = findInput.value;
+  const replacement = $('#replace-input').value;
+  if (!query) return;
+  const code = textarea.value;
+  const caseSensitive = $('#find-case').checked;
+  const useRegex = $('#find-regex').checked;
+  const wholeWord = $('#find-whole').checked;
+
+  let pattern;
+  try {
+    if (useRegex) {
+      pattern = new RegExp(query, 'g' + (caseSensitive ? '' : 'i'));
+    } else {
+      let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (wholeWord) escaped = '\\b' + escaped + '\\b';
+      pattern = new RegExp(escaped, 'g' + (caseSensitive ? '' : 'i'));
+    }
+  } catch (e) { return; }
+
+  const count = (code.match(pattern) || []).length;
+  textarea.value = code.replace(pattern, replacement);
+  onInput();
+  doFind();
+  textarea.focus();
+  showToast(tf('已替换 {n} 处', { n: count }));
+}
+
+function scrollToPosition(pos) {
+  const val = textarea.value;
+  const line = val.substring(0, pos).split('\n').length;
+  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight);
+  const targetScroll = (line - 5) * lineHeight;
+  editorScroll.scrollTop = Math.max(0, targetScroll);
+}
+
+// ==================== 语言切换 ====================
+function changeLanguage(langId) {
+  const tab = state.tabs[state.activeTabIdx];
+  if (!tab) return;
+  tab.language = langId;
+  highlight();
+  updateStatusBar();
+}
+
+// ==================== 主题切换 ====================
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  updateTheme();
+}
+
+function updateTheme() {
+  if (state.theme === 'light') {
+    document.body.classList.add('light');
+  } else {
+    document.body.classList.remove('light');
+  }
+  setTimeout(highlight, 50);
+}
+
+// 跟随记事本全局主题（炫酷现代→蓝紫品牌色）
+function applyGlobalBrand() {
+  document.body.classList.toggle('theme-modern', localStorage.getItem('app_theme') === 'modern');
+}
+applyGlobalBrand();
+window.addEventListener('storage', e => { if (e.key === 'app_theme') applyGlobalBrand(); });
+
+// ==================== 其他 UI ====================
+function toggleWordWrap() {
+  state.wordWrap = !state.wordWrap;
+  textarea.style.whiteSpace = state.wordWrap ? 'pre-wrap' : 'pre';
+  $('#highlight-layer').style.whiteSpace = state.wordWrap ? 'pre-wrap' : 'pre';
+  const btn = $('#wrap-btn');
+  btn.classList.toggle('active', state.wordWrap);
+}
+
+function changeFontSize(delta) {
+  state.fontSize = Math.max(10, Math.min(30, state.fontSize + delta));
+  document.body.style.fontSize = state.fontSize + 'px';
+  textarea.style.fontSize = state.fontSize + 'px';
+  $('#highlight-layer').style.fontSize = state.fontSize + 'px';
+  gutter.style.fontSize = state.fontSize + 'px';
+}
+
+function showToast(msg) {
+  const toast = $('#toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+function escapeHtml(str) {
+  const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"};
+  return str.replace(/[&<>"']/g, c => map[c]);
+}
+
+// ==================== 拖放文件支持 ====================
+document.addEventListener('dragover', (e) => { e.preventDefault(); });
+document.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (files.length === 0) return;
+  let opened = 0, skipped = 0;
+  for (const file of files) {
+    const content = await file.text();
+    const existingIdx = state.tabs.findIndex(t => t.filePath === file.name && t.content === content);
+    if (existingIdx >= 0) { switchTab(existingIdx); skipped++; continue; }
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    const lang = extMap[ext] || detectLanguage(file.name, content);
+    state.tabs.push({
+      id: Date.now() + Math.random(),
+      name: file.name,
+      language: lang,
+      content: content,
+      modified: false,
+      fileHandle: null,
+      filePath: file.name,
+    });
+    opened++;
+  }
+  if (opened > 0) switchTab(state.tabs.length - 1);
+  const msgs = [];
+  if (opened > 0) msgs.push(tf('已打开 {n} 个文件', { n: opened }));
+  if (skipped > 0) msgs.push(tf('{n} 个已打开(跳过)', { n: skipped }));
+  showToast(msgs.join(t('，')));
+});
+
+// ==================== AI 代码清洗 ====================
+let _cleanResult = '';
+
+function openCleanModal() {
+  const overlay = $('#clean-modal-overlay');
+  overlay.style.display = 'flex';
+  const input = $('#clean-input');
+  const sel = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+  if (sel && sel.length > 10) {
+    input.value = sel;
+  } else if (textarea.value && textarea.value.length > 10) {
+    input.value = textarea.value;
+  }
+  input.focus();
+  runClean();
+}
+
+function closeCleanModal() {
+  $('#clean-modal-overlay').style.display = 'none';
+}
+
+function runClean() {
+  const raw = $('#clean-input').value;
+  if (!raw.trim()) {
+    $('#clean-preview').textContent = t('(粘贴内容后自动清洗)');
+    $('#clean-stats').textContent = '';
+    return;
+  }
+  const stripHtml = $('#clean-strip-html').checked;
+  const extractBlocks = $('#clean-extract-blocks').checked;
+  const mergeBlocks = $('#clean-merge').checked;
+  const stripLineNums = $('#clean-strip-linenums').checked;
+  const stripCommentary = $('#clean-strip-commentary').checked;
+  const trimLines = $('#clean-trim-lines').checked;
+
+  let result = raw;
+
+  // Step 1: 去除 HTML 标签
+  if (stripHtml) {
+    result = result.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                   .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+                   .replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+    result = result.replace(/<span[^>]*>/gi, '').replace(/<\/span>/gi, '');
+    result = result.replace(/<div[^>]*>/gi, '\n').replace(/<\/div>/gi, '');
+    result = result.replace(/<p[^>]*>/gi, '\n').replace(/<\/p>/gi, '\n');
+    result = result.replace(/<br\s*\/?>/gi, '\n');
+    result = result.replace(/<code[^>]*>/gi, '').replace(/<\/code>/gi, '');
+    result = result.replace(/<pre[^>]*>/gi, '').replace(/<\/pre>/gi, '');
+    result = result.replace(/<strong[^>]*>/gi, '').replace(/<\/strong>/gi, '');
+    result = result.replace(/<em[^>]*>/gi, '').replace(/<\/em>/gi, '');
+    result = result.replace(/<b>/gi, '').replace(/<\/b>/gi, '');
+    result = result.replace(/<i>/gi, '').replace(/<\/i>/gi, '');
+    result = result.replace(/<ol[^>]*>/gi, '\n').replace(/<\/ol>/gi, '');
+    result = result.replace(/<ul[^>]*>/gi, '\n').replace(/<\/ul>/gi, '');
+    result = result.replace(/<li[^>]*>/gi, '\n').replace(/<\/li>/gi, '');
+    result = result.replace(/<a[^>]*>/gi, '').replace(/<\/a>/gi, '');
+    result = result.replace(/<[^>]+>/g, '');
+    result = result.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                   .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+                   .replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+  }
+
+  // Step 2: 提取 Markdown 代码块
+  if (extractBlocks) {
+    const blockRegex = /```[^\n]*\n([\s\S]*?)```/g;
+    const blocks = [];
+    let match;
+    while ((match = blockRegex.exec(result)) !== null) {
+      blocks.push(match[1]);
+    }
+    if (blocks.length > 0) {
+      result = mergeBlocks ? blocks.join('\n\n') : blocks.map((b, i) =>
+        '// --- Code Block ' + (i+1) + ' ---\n' + b
+      ).join('\n\n');
+    } else {
+      const simpleFence = /```\s*\n([\s\S]*?)```/g;
+      const simpleBlocks = [];
+      let sm;
+      while ((sm = simpleFence.exec(result)) !== null) {
+        simpleBlocks.push(sm[1]);
+      }
+      if (simpleBlocks.length > 0) {
+        result = mergeBlocks ? simpleBlocks.join('\u000a\u000a') : simpleBlocks.map((b, i) =>
+          '// --- Code Block ' + (i+1) + ' ---\u000a' + b
+        ).join('\u000a\u000a');
+      } else if (stripCommentary) {
+        result = removeCommentaryText(result);
+      }
+    }
+  } else if (stripCommentary) {
+    result = removeCommentaryText(result);
+  }
+
+  // Step 3: 去行号
+  if (stripLineNums) {
+    result = result.split('\n').map(line => {
+      const m = line.match(/^(\s*)(\d{1,6})([|:\s\t]{1,3})(.*)/);
+      if (m && m[4] && m[4].trim() && !/^\d+\s*$/.test(m[4].trim())) return m[1] + m[4];
+      return line;
+    }).join('\n');
+  }
+
+  // Step 4: 去多余空行
+  if (trimLines) {
+    result = result.replace(/\u000a{3,}/g, '\u000a\u000a').replace(/^\u000a+/, '').replace(/\u000a+$/, '\u000a');
+  }
+
+  result = result.split('\n').map(l => l.trimEnd()).join('\n');
+
+  // Step 5: 去 AI 回复的开场/结束语（属于文本描述，随选项控制）
+  if (stripCommentary) {
+    result = result.replace(/^(当然|好的|没问题|Here's|Let me|我来|下面是|以下是).{0,80}?[：:\u000a]/gmi, '');
+    result = result.replace(/(希望|如果有|如果你|Feel free|Let me know|Happy).{0,120}?$/gmi, '');
+  }
+
+  _cleanResult = result.trim();
+  $('#clean-preview').textContent = _cleanResult || t('(未提取到有效代码)');
+  const lines = _cleanResult.split('\n').length;
+  const chars = _cleanResult.length;
+  $('#clean-stats').textContent = tf('{lines} 行 | {chars} 字符', { lines, chars });
+}
+
+function removeCommentaryText(text) {
+  const lines = text.split('\n');
+  const result = [];
+  let inCode = false;
+  let codeScore = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isCodeLike =
+      /^[\s{}();\[\]=+\-*\/<>!&|^%~@#]+/.test(trimmed) ||
+      /^(function|def|class|import|from|export|const|let|var|if|for|while|return|public|private|protected|static|void|int|string|bool|float|double|package|require|module|async|await)\b/.test(trimmed) ||
+      /^(#include|#define|#if|#ifdef|#ifndef|#endif|#pragma|using|namespace|template|SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/.test(trimmed) ||
+      /^[a-zA-Z_$][\w.]*\s*[:=]\s*/.test(trimmed) ||
+      /[{}\[\];]\s*$/.test(trimmed) ||
+      /^\s*\/\/|\/\*|\*\/|<!--|-->|#\s/.test(trimmed);
+    if (isCodeLike || (inCode && trimmed.length > 0)) {
+      if (!inCode && isCodeLike) inCode = true;
+      result.push(line);
+      codeScore++;
+    } else if (trimmed.length === 0 && inCode) {
+      result.push(line);
+    }
+  }
+  return result.join('\n').trim() || text;
+}
+
+function applyCleanResult(mode) {
+  if (!_cleanResult) { showToast(t('没有可用的清洗结果')); return; }
+  const lang = detectCleanLang();
+  closeCleanModal();
+  if (mode === 'replace') {
+    const tab = state.tabs[state.activeTabIdx];
+    if (!tab) return;
+    textarea.value = _cleanResult;
+    tab.language = lang; tab.content = _cleanResult;
+    tab.modified = true;
+    langSelect.value = lang;
+    state.lastContent = _cleanResult;
+    state.undoStack = []; state.redoStack = [];
+    highlight(); updateGutter(); updateCursor(); updateStatusBar(); renderTabs();
+    showToast(t('代码已清洗并替换当前内容'));
+  } else if (mode === 'append') {
+    const tab = state.tabs[state.activeTabIdx];
+    if (!tab) return;
+    textarea.value += '\n\n' + _cleanResult;
+    tab.content = textarea.value; tab.modified = true;
+    langSelect.value = lang;
+    state.lastContent = textarea.value;
+    highlight(); updateGutter(); updateCursor(); updateStatusBar();
+    showToast(t('代码已追加到当前文件'));
+  } else {
+    const tab = {
+      id: Date.now(), name: 'cleaned-' + (state.tabs.length + 1),
+      language: lang, content: _cleanResult, modified: true,
+      fileHandle: null, filePath: null,
+    };
+    state.tabs.push(tab);
+    switchTab(state.tabs.length - 1);
+    showToast(t('清洗结果已创建为新标签页'));
+  }
+}
+
+function detectCleanLang() {
+  const c = _cleanResult || '';
+  if (/^(<\?xml|<html|<\!DOCTYPE|<!DOCTYPE)/i.test(c.trim())) return 'html';
+  if (/^(function\s|const\s|let\s|var\s|import\s|export\s|require\(|console\.|document\.|window\.|=>\s*{)/m.test(c)) return 'javascript';
+  if (/^(import\s|from\s|interface\s|type\s|:\s*(string|number|boolean)\b)/m.test(c)) return 'typescript';
+  if (/^(def\s|class\s|import\s|from\s\w+\s+import|if\s+__name__|print\(|#{0,1}\s*-\*-)/m.test(c)) return 'python';
+  if (/^(public\s+class|package\s|import\s+java)/m.test(c)) return 'java';
+  if (/^(public\s|private\s|protected\s|static\s|void\s|int\s|string\s|\#include|using\s+namespace)/m.test(c)) return 'cpp';
+  if (/^(package\s+main|func\s|import\s+")/m.test(c)) return 'go';
+  if (/^(fn\s|use\s|mod\s|let\s+mut|pub\s)/m.test(c)) return 'rust';
+  if (/^(SELECT\s|INSERT\s|UPDATE\s|DELETE\s|CREATE\s|DROP\s|ALTER\s)/mi.test(c)) return 'sql';
+  if (/^(\.\w+\s*\{|@import|@media|@keyframes|\#[\w-]+\s*\{)/m.test(c)) return 'css';
+  if (/^(\{[\s\S]*\}|\[\s*\{)/m.test(c.trim())) return 'json';
+  if (/^(\w+:\s|-\s+\w+:|#\s*---)/m.test(c)) return 'yaml';
+  if (/^(#!\/bin\/|if\s+\[\[|then|fi|echo\s|grep\s|awk\s|sed\s|export\s)/m.test(c)) return 'bash';
+  if (/^(Get-|Set-|Write-|param\()/m.test(c)) return 'powershell';
+  if (/^(@echo\s|REM\s|set\s|if\s+exist|call\s)/mi.test(c)) return 'dos';
+  if (/^(require\s+|def\s+|module\s+|class\s+|puts\s)/m.test(c)) return 'ruby';
+  if (/^(<\?php|namespace\s|use\s+\w+\\|echo\s)/m.test(c)) return 'php';
+  return 'plaintext';
+}
+
+// 实时预览
+$('#clean-input').addEventListener('input', runClean);
+document.querySelectorAll('#clean-options input[type=checkbox]').forEach(cb => {
+  cb.addEventListener('change', runClean);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#clean-modal-overlay').style.display === 'flex') {
+    closeCleanModal();
+  }
+});
+$('#clean-input').addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault(); applyCleanResult('replace');
+  }
+});
+
+// ==================== 启动 ====================
+// 中英文文案：加载时按 localStorage('app_lang') 应用；主页面切换语言时 storage 联动刷新
+applyI18n();
+window.addEventListener('storage', e => {
+  if (e.key === 'app_lang') { applyI18n(); renderTabs(); updateStatusBar(); hideTabContextMenu(); }
+});
+try {
+  if (typeof hljs === 'undefined') {
+    // 本地 highlight.js 缺失时降级为纯文本显示，不阻塞编辑器启动
+    const _esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    window.hljs = {
+      highlight: (code) => ({ value: _esc(code) }),
+      highlightAuto: (code) => ({ value: _esc(code) })
+    };
+  }
+  init();
+  console.log('AI Code Editor Ready - Notepad++ Style');
+  console.log('支持格式: 开发语言|脚本|Shell/Bash/PowerShell/Batch/DOS|XML/JSON/YAML/Toml|AI Prompt/Config|等70+种');
+  console.log('快捷键: Ctrl+N 新建|Ctrl+O 打开|Ctrl+S 保存|Ctrl+F 查找|Ctrl+/ 注释|Ctrl+D 复制行|Ctrl+Z/Y 撤销/重做');
+} catch(e) {
+  console.error('Init Error:', e.message, e.stack);
+  document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;bottom:10px;right:10px;background:red;color:white;padding:8px 16px;border-radius:4px;z-index:9999;">' + t('错误') + ': ' + e.message + '</div>');
+  document.getElementById('toast').textContent = 'Error: ' + e.message;
+  document.getElementById('toast').classList.add('show');
+}
+</script>
+</body>
+</html>

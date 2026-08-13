@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>安全记事本</title>
+    <link rel="icon" href="assets/icon.png" type="image/png">
+    <link rel="stylesheet" href="css/style.css?v=20260815">
+    <script>
+    // 首帧渲染前应用主题与隐藏设置，消除刷新后“先出现再消失”的闪烁
+    (function () {
+        try {
+            var d = document.documentElement, ls = window.localStorage;
+            if (ls.getItem('app_theme') === 'modern') d.setAttribute('data-theme', 'modern');
+            if (ls.getItem('hide_stats') === 'true') d.classList.add('pre-hide-stats');
+            if (ls.getItem('hide_mind_tool') === 'true') d.classList.add('pre-hide-mind');
+            if (ls.getItem('hide_flow_tool') === 'true') d.classList.add('pre-hide-flow');
+            if (ls.getItem('hide_code_tool') === 'true') d.classList.add('pre-hide-code');
+            if (ls.getItem('hide_maple_bg') === 'true' || ls.getItem('app_theme') === 'modern') d.classList.add('pre-plain-bg');
+        } catch (e) { /* localStorage 不可用时忽略 */ }
+    })();
+    </script>
+</head>
+<body>
+
+<!-- 登录/设置密码模态框 -->
+<div class="modal-overlay" id="loginModal">
+    <div class="modal-box login-card">
+        <div class="login-icon">🔐</div>
+        <h2 id="loginTitle" data-i18n>解锁记事本</h2>
+        <p id="loginDesc" data-i18n>请输入密码以解密您的笔记</p>
+        <input type="password" id="passwordInput" placeholder="请输入密码" data-i18n-ph
+               onkeydown="if(event.key==='Enter')document.getElementById('loginBtn').click()">
+        <input type="password" id="passwordInput2" placeholder="再次输入密码" data-i18n-ph>
+        <button class="btn btn-primary" id="loginBtn" data-i18n>解锁</button>
+    </div>
+</div>
+
+<!-- 主界面 -->
+<div class="app-main" id="appMain">
+
+    <!-- 顶部导航栏 -->
+    <nav class="topbar">
+        <span class="topbar-leaf topbar-leaf-1" aria-hidden="true">🍁</span>
+        <span class="topbar-leaf topbar-leaf-2" aria-hidden="true">🍁</span>
+        <span class="topbar-leaf topbar-leaf-3" aria-hidden="true">🍁</span>
+        <span class="topbar-leaf topbar-leaf-4" aria-hidden="true">🍁</span>
+        <span class="topbar-leaf topbar-leaf-5" aria-hidden="true">🍁</span>
+        <span class="topbar-leaf topbar-leaf-6" aria-hidden="true">🍁</span>
+        <div class="topbar-left">
+            <div class="logo">
+                <span class="logo-icon"><img src="assets/icon.png" alt="安全记事本" id="logoIcon"></span>
+                <span class="logo-text" data-i18n>安全记事本</span>
+            </div>
+        </div>
+        <div class="topbar-center">
+            <div class="search-box">
+                <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <div class="search-mode-toggle">
+                    <button class="search-mode-btn active" id="searchModeNotes" onclick="App.setSearchMode('notes')" data-i18n>笔记</button>
+                    <button class="search-mode-btn" id="searchModeTodos" onclick="App.setSearchMode('todos')" data-i18n>待办</button>
+                </div>
+                <input type="text" id="searchInput" placeholder="搜索笔记..." oninput="App.onSearchInput()" data-i18n-ph>
+            </div>
+        </div>
+        <div class="topbar-right">
+            <button class="topbar-icon-btn" onclick="App.checkRemindersNow()" title="检查提醒" data-i18n-title>
+                <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                <span class="badge-dot" id="reminderBadge" style="display:none"></span>
+            </button>
+            <button class="topbar-icon-btn" id="mindToggleBtn" onclick="App.toggleMindView()" title="思维导图" data-i18n-title>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+            <button class="topbar-icon-btn" id="flowToggleBtn" onclick="App.toggleFlowView()" title="流程图" data-i18n-title>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg>
+            </button>
+            <button class="topbar-icon-btn" id="codeToggleBtn" onclick="App.toggleCodeView()" title="代码编辑器" data-i18n-title>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </button>
+            <button class="topbar-icon-btn" id="syncToggleBtn" onclick="App.toggleSyncView()" title="目录比较与同步" data-i18n-title>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+            </button>
+            <button class="topbar-icon-btn" onclick="App.showSettings()" title="设置" data-i18n-title>
+                <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </button>
+            <button class="topbar-icon-btn lang-btn" id="langToggleBtn" onclick="App.toggleLang()" title="Switch Language / 切换语言">EN</button>
+        </div>
+    </nav>
+
+    <!-- 页面主体 -->
+    <div class="page-body" id="pageBody">
+
+        <!-- 统计卡片行 -->
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <div class="stat-label" data-i18n>全部笔记</div>
+                    <div class="stat-sub" data-i18n>加密存储中</div>
+                </div>
+                <div class="stat-value" id="statTotal">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-info">
+                    <div class="stat-label" data-i18n>今日笔记</div>
+                    <div class="stat-sub" data-i18n>当前日期</div>
+                </div>
+                <div class="stat-value" id="statToday">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-info">
+                    <div class="stat-label" data-i18n>待提醒</div>
+                    <div class="stat-sub" data-i18n>定时提醒任务</div>
+                </div>
+                <div class="stat-value" id="statReminder">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-info">
+                    <div class="stat-label" data-i18n>待办任务数量</div>
+                    <div class="stat-sub" data-i18n>总任务数</div>
+                </div>
+                <div class="stat-chart"><i></i><i></i><i></i><i></i></div>
+                <div class="stat-value" id="statTodo">0</div>
+            </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="content-row">
+
+            <!-- 左侧：日历 + 笔记列表 -->
+            <div class="left-col">
+                <!-- 日历卡片 -->
+                <div class="card calendar-card" id="calendarCard">
+                    <span class="cal-leaf cal-leaf-1" aria-hidden="true">🍁</span>
+                    <span class="cal-leaf cal-leaf-2" aria-hidden="true">🍁</span>
+                    <span class="cal-leaf cal-leaf-3" aria-hidden="true">🍁</span>
+                    <span class="cal-leaf cal-leaf-4" aria-hidden="true">🍁</span>
+                    <span class="cal-leaf cal-leaf-5" aria-hidden="true">🍁</span>
+                    <span class="cal-leaf cal-leaf-6" aria-hidden="true">🍁</span>
+                    <div class="card-header">
+                        <span class="card-title" id="calendarTitle">2026年1月</span>
+                        <div class="cal-nav">
+                            <button onclick="App.prevMonth()">‹</button>
+                            <button onclick="App.nextMonth()">›</button>
+                            <button class="collapse-btn" id="calCollapseBtn" onclick="App.toggleCalendarPanel()" title="折叠/展开" data-i18n-title>▾</button>
+                        </div>
+                    </div>
+                    <div id="calendarBody"></div>
+                </div>
+
+                <!-- 笔记列表卡片 -->
+                <div class="card notelist-card">
+                    <div class="card-header list-tabs-header">
+                        <div class="list-tabs">
+                            <button class="list-tab active" id="tabNotes" onclick="App.switchListTab('notes')" data-i18n>笔记列表</button>
+                            <button class="list-tab" id="tabTodos" onclick="App.switchListTab('todos')"><span data-i18n>待办任务</span><span class="tab-badge" id="todoBadge" style="display:none;">0</span></button>
+                        </div>
+                        <button class="link-btn" id="newNoteBtn" onclick="App.createNote()" data-i18n>＋ 新建</button>
+                    </div>
+                    <div class="note-list" id="noteList">
+                        <div class="empty-hint" data-i18n>暂无笔记<br>点击"新建"创建第一条笔记</div>
+                    </div>
+                    <div class="todo-list" id="todoList" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- 右侧：编辑器 -->
+            <div class="right-col">
+                <!-- 思维导图视图（内嵌，不新开标签页） -->
+                <div class="mind-view" id="mindView" style="display:none">
+                    <iframe id="mindFrame" title="思维导图"></iframe>
+                </div>
+
+                <!-- 流程图视图（内嵌，不新开标签页） -->
+                <div class="flow-view" id="flowView" style="display:none">
+                    <iframe id="flowFrame" title="流程图"></iframe>
+                </div>
+
+                <!-- 代码编辑器视图（内嵌，不新开标签页） -->
+                <div class="code-view" id="codeView" style="display:none">
+                    <iframe id="codeFrame" title="代码编辑器"></iframe>
+                </div>
+
+                <!-- 目录比较视图（内嵌整页，同代码编辑器；选择器需在主文档调用） -->
+                <div class="sync-view" id="syncView" style="display:none">
+                    <div class="sync-toolbar">
+                        <span class="sync-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg><span data-i18n>目录比较</span></span>
+                        <button class="btn btn-primary" onclick="App.compareDirs()" data-i18n>比较</button>
+                        <div class="sync-filters">
+                            <label><input type="checkbox" id="syncFDiff" checked onchange="App.renderSyncList()"><span data-i18n>不一致</span></label>
+                            <label><input type="checkbox" id="syncFSame" onchange="App.renderSyncList()"><span data-i18n>相同</span></label>
+                            <label><input type="checkbox" id="syncFOnlyA" checked onchange="App.renderSyncList()"><span data-i18n>仅左边有</span></label>
+                            <label><input type="checkbox" id="syncFOnlyB" checked onchange="App.renderSyncList()"><span data-i18n>仅右边有</span></label>
+                        </div>
+                        <span class="sync-spacer"></span>
+                        <button class="btn btn-primary" onclick="App.syncAll()" data-i18n>一键全部同步</button>
+                        <button class="sync-ghost" style="margin-left:6px;" id="syncUndoBtn" onclick="App.undoSync()" title="回退上一步同步操作（删除/拷贝/覆盖，最多保留 3 步）" data-i18n-title disabled data-i18n>↩ 回退</button>
+                        <button class="sync-ghost" style="margin-left:6px;" onclick="App.showSyncSettings()" title="同步设置" data-i18n-title data-i18n>⚙ 设置</button>
+                    </div>
+                    <div class="sync-pickrow">
+                        <div class="sync-pick"><button class="sync-ghost" onclick="App.pickSyncDir('A')"><svg class="sync-folder" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg><span data-i18n>选择左边目录</span></button><span class="sync-path" id="syncDirAName" title="" data-i18n>未选择</span></div>
+                        <div class="sync-gutter"></div>
+                        <div class="sync-pick"><button class="sync-ghost" onclick="App.pickSyncDir('B')"><svg class="sync-folder" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg><span data-i18n>选择右边目录</span></button><span class="sync-path" id="syncDirBName" title="" data-i18n>未选择</span></div>
+                    </div>
+                    <div class="sync-head">
+                        <div class="sync-side"><span data-i18n>名称（左）</span><span class="sync-num" data-i18n>大小</span><span class="sync-num" data-i18n>已修改</span></div>
+                        <div class="sync-gutter"></div>
+                        <div class="sync-side"><span data-i18n>名称（右）</span><span class="sync-num" data-i18n>大小</span><span class="sync-num" data-i18n>已修改</span></div>
+                    </div>
+                    <div class="sync-list" id="syncList"><div class="sync-empty" data-i18n>选择左边和右边目录后点「比较」。<br>蓝底＝仅一侧有，红底＝两侧不一致，灰底＝相同；中间箭头按钮逐条同步，右上「一键全部同步」批量执行（仅一次确认）。</div></div>
+                    <div class="sync-status" id="syncStatus" data-i18n>未选择目录</div>
+                </div>
+
+                <!-- 空状态 -->
+                <div class="empty-panel card" id="emptyPanel">
+                    <div class="empty-inner">
+                        <div class="empty-icon">📋</div>
+                        <p data-i18n>选择或创建一条笔记开始编辑</p>
+                    </div>
+                </div>
+
+                <!-- 编辑器面板 -->
+                <div class="editor-panel" id="editorPanel">
+                        <!-- 编辑器主体 -->
+                        <div class="editor-main-col">
+                    <!-- 编辑器主卡片 -->
+                    <div class="card editor-card">
+                        <div class="editor-topbar">
+                            <input type="text" id="noteTitle" placeholder="笔记标题..." oninput="App.updateCurrentNote()" data-i18n-ph>
+                            <div class="editor-meta">
+                                <span class="editor-updated-time" id="noteUpdatedTime" title="最后更新时间" data-i18n-title></span>
+                                <div class="meta-field">
+                                    <label><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path></svg> <span data-i18n>提醒</span></label>
+                                    <input type="datetime-local" id="noteReminder" onchange="App.setReminder()">
+                                </div>
+                                <div class="meta-actions">
+                                    <button class="btn btn-attach" onclick="App.uploadAttachment()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg> <span data-i18n>附件</span></button>
+                                    <button class="btn btn-import" onclick="App.importMarkdown()" title="导入 Markdown 文件" data-i18n-title><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> <span data-i18n>导入</span></button>
+                                    <button class="btn btn-export" onclick="App.showExportMenu()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg> <span data-i18n>导出</span></button>
+                                    <button class="btn btn-todo" onclick="App.generateTodos()" title="将笔记内容生成待办任务" data-i18n-title><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg> <span data-i18n>生成待办</span></button>
+                                    <button class="btn btn-del" onclick="App.deleteNote(App.currentNote.id)" title="删除" data-i18n-title><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 富文本工具栏 -->
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn" onclick="App.execCmd('bold')" title="加粗" data-i18n-title><b>B</b></button>
+                            <button class="toolbar-btn" onclick="App.execCmd('italic')" title="斜体" data-i18n-title><i>I</i></button>
+                            <button class="toolbar-btn" onclick="App.execCmd('underline')" title="下划线" data-i18n-title><u>U</u></button>
+                            <button class="toolbar-btn" onclick="App.execCmd('strikeThrough')" title="删除线" data-i18n-title><s>S</s></button>
+                            <span class="toolbar-sep"></span>
+                            <button class="toolbar-btn" onclick="App.execCmd('formatBlock','<h2>')" title="标题1" data-i18n-title>H1</button>
+                            <button class="toolbar-btn" onclick="App.execCmd('formatBlock','<h3>')" title="标题2" data-i18n-title>H2</button>
+                            <button class="toolbar-btn" onclick="App.execCmd('formatBlock','<p>')" title="正文" data-i18n-title>P</button>
+                            <span class="toolbar-sep"></span>
+                            <button class="toolbar-btn" onclick="App.execCmd('insertUnorderedList')" title="无序列表" data-i18n-title>•≡</button>
+                            <button class="toolbar-btn" onclick="App.execCmd('insertOrderedList')" title="有序列表" data-i18n-title>1≡</button>
+                            <button class="toolbar-btn" onclick="App.execCmd('insertHorizontalRule')" title="插入分割线" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="7" cy="6" r="0.5"/><circle cx="17" cy="18" r="0.5"/></svg></button>
+                            <span class="toolbar-sep"></span>
+                            <button class="toolbar-btn" onclick="App.execCmd('justifyLeft')" title="左对齐" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="15" y1="10" x2="3" y2="10"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="15" y1="18" x2="3" y2="18"/></svg></button>
+                            <button class="toolbar-btn" onclick="App.execCmd('justifyCenter')" title="居中" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg></button>
+                            <button class="toolbar-btn" onclick="App.execCmd('justifyRight')" title="右对齐" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="10" x2="9" y2="10"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="9" y2="18"/></svg></button>
+                            <span class="toolbar-sep"></span>
+                            <button class="toolbar-btn color-toggle" onmousedown="App.saveEditorSelection()" onclick="App.toggleColorPanel('text',this)" title="文字颜色" data-i18n-title>A<span class="color-ind" id="textColorInd"></span></button>
+                            <button class="toolbar-btn color-toggle" onmousedown="App.saveEditorSelection()" onclick="App.toggleColorPanel('bg',this)" title="高亮颜色" data-i18n-title><span class="hl-ind" id="bgColorInd">A</span></button>
+                            <input type="color" id="textColorCustom" value="#2d3748" class="hidden-picker">
+                            <input type="color" id="bgColorCustom" value="#ffff00" class="hidden-picker">
+                            <button class="toolbar-btn" onclick="App.execCmd('removeFormat')" title="清除格式" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V4h16v3"/><path d="M5 20h6"/><path d="M13 4 8 20"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="21" y1="15" x2="15" y2="21"/></svg></button>
+                            <span class="toolbar-sep"></span>
+                            <button class="toolbar-btn" onmousedown="App.saveEditorSelection()" onclick="App.insertLink()" title="超链接（选中文本后点击；选中已有链接再点击可移除）" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+                            <button class="toolbar-btn" onmousedown="App.saveEditorSelection()" onclick="App.insertAnnotation()" title="加注释，悬浮显示（选中已有注释再点击可移除）" data-i18n-title data-i18n>注</button>
+                            <button class="toolbar-btn" onmousedown="App.saveEditorSelection()" onclick="App.triggerImageInsert()" title="插入图片" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
+                            <button class="toolbar-btn" onmousedown="App.saveEditorSelection()" onclick="App.toggleTablePicker(event)" title="插入表格" data-i18n-title><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/></svg></button>
+                            <div id="tablePickerPopover" class="table-picker-popover">
+                                <div class="table-picker-grid" id="tablePickerGrid"></div>
+                                <div class="table-picker-label" id="tablePickerLabel">1 × 1</div>
+                            </div>
+                            <input type="file" id="editorImageInput" accept="image/*" class="hidden-picker" onchange="App.onEditorImagePicked(event)">
+                            <span class="toolbar-sep"></span>
+                        </div>
+
+                        <!-- 编辑区域 -->
+                        <div class="editor-content" id="editorContent" contenteditable="true"></div>
+
+                        <!-- 图片调整大小浮层（位于编辑区之外，不会被保存进笔记内容） -->
+                        <div id="imgResizeOverlay" class="img-resize-overlay">
+                            <div class="img-resize-handle" id="imgResizeHandle" title="拖拽调整图片大小（双击图片恢复原始尺寸）" data-i18n-title></div>
+                            <div class="img-resize-tip" id="imgResizeTip"></div>
+                        </div>
+                    </div>
+
+                    <!-- 附件卡片 -->
+                    <div class="card attachment-card collapsed" id="attachmentCard">
+                        <div class="card-header">
+                            <span class="card-title"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg> <span data-i18n>附件</span> <span id="attachCount" class="attach-count"></span></span>
+                            <div class="attach-header-actions">
+                                <button class="link-btn" onclick="App.uploadAttachment()" data-i18n>上传文件</button>
+                                <button class="collapse-btn" id="attachCollapseBtn" onclick="App.toggleAttachmentPanel()" title="折叠/展开" data-i18n-title>▾</button>
+                            </div>
+                        </div>
+                        <div id="attachmentList" class="attach-body">
+                            <div class="empty-hint" data-i18n>暂无附件</div>
+                        </div>
+                    </div>
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 附件预览模态框 -->
+<div class="modal-overlay modal-large" id="previewModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="previewTitle" data-i18n>预览</h3>
+            <button class="modal-close" onclick="App.closeModal('previewModal')">✕</button>
+        </div>
+        <div id="previewContent"></div>
+    </div>
+</div>
+
+<!-- 设置模态框 -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-box" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;">
+        <div class="modal-header" style="flex-shrink:0;">
+            <h3><span class="s-icon" data-icon="gear"></span><span data-i18n>设置</span></h3>
+            <button class="modal-close" onclick="App.closeModal('settingsModal')">✕</button>
+        </div>
+        <div class="settings-scroll-body">
+
+        <!-- 密码保护开关 -->
+        <div class="settings-form">
+            <h4 style="font-size:0.9em;margin-bottom:10px;"><span class="s-icon" data-icon="key"></span><span data-i18n>密码保护</span></h4>
+            <div class="toggle-group">
+                <label class="toggle-item">
+                    <input type="checkbox" id="pwdProtectToggle" checked onchange="App.onPwdProtectToggle()">
+                    <span><span class="s-icon" data-icon="lock"></span><span data-i18n>登录时需要输入密码（关闭后直接进入页面）</span></span>
+                </label>
+            </div>
+            <div id="disablePwdConfirm" style="display:none;margin-top:12px;">
+                <label data-i18n>请输入当前密码以确认关闭密码保护</label>
+                <input type="password" id="disablePwdInput" placeholder="当前密码" data-i18n-ph>
+                <button class="btn btn-primary" onclick="App.confirmDisablePwdProtection()" data-i18n>确认关闭密码保护</button>
+            </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+        <!-- 修改密码 -->
+        <div class="settings-form">
+            <h4 style="font-size:0.9em;margin-bottom:4px;"><span class="s-icon" data-icon="lock"></span><span data-i18n>修改密码</span></h4>
+            <label data-i18n>当前密码</label>
+            <input type="password" id="oldPassword" placeholder="输入当前密码" data-i18n-ph>
+            <label data-i18n>新密码</label>
+            <input type="password" id="newPassword" placeholder="至少4个字符" data-i18n-ph>
+            <label data-i18n>确认新密码</label>
+            <input type="password" id="newPassword2" placeholder="再次输入新密码" data-i18n-ph>
+            <button class="btn btn-primary" onclick="App.changePassword()" data-i18n>确认修改密码</button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+        <!-- 提醒方式设置 -->
+        <div class="settings-form">
+            <h4 style="font-size:0.9em;margin-bottom:10px;"><span class="s-icon" data-icon="alarm"></span><span data-i18n>提醒方式</span></h4>
+            <div class="toggle-group">
+                <label class="toggle-item">
+                    <input type="checkbox" id="notifyPopup" checked onchange="App.saveReminderSettings()">
+                    <span><span class="s-icon" data-icon="volume"></span><span data-i18n>弹窗提醒（页面内醒目弹框）</span></span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="notifySound" checked onchange="App.saveReminderSettings()">
+                    <span><span class="s-icon" data-icon="bell"></span><span data-i18n>提示音（铃声提醒）</span></span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="notifySystem" checked onchange="App.saveReminderSettings()">
+                    <span><span class="s-icon" data-icon="message"></span><span data-i18n>系统通知（浏览器原生通知）</span></span>
+                </label>
+            </div>
+            <button class="btn btn-primary" style="margin-top:12px;padding:8px 16px;font-size:0.82em;" onclick="App.testSystemNotification()"><span class="s-icon" data-icon="bell"></span><span data-i18n>测试通知效果</span></button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+        <!-- 界面显示设置 -->
+        <div class="settings-form">
+            <h4 style="font-size:0.9em;margin-bottom:10px;"><span class="s-icon" data-icon="monitor"></span><span data-i18n>界面显示</span></h4>
+            <div class="toggle-group">
+                <label class="toggle-item">
+                    <input type="checkbox" id="showStatsToggle" checked onchange="App.toggleStatsRow()">
+                    <span><span class="s-icon" data-icon="chart"></span><span data-i18n>显示顶部统计卡片（关闭后编辑区域更大）</span></span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="mapleBgToggle" checked onchange="App.toggleMapleBg()">
+                    <span><span class="s-icon" data-icon="leaf"></span><span data-i18n>枫叶背景装饰（顶部导航栏与日历，关闭后为纯白无图案）</span></span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="showMindToggle" checked onchange="App.toggleToolBtn('mind')">
+                    <span><span class="s-icon" data-icon="mind"></span><span data-i18n>显示顶栏「思维导图」按钮</span></span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="showFlowToggle" checked onchange="App.toggleToolBtn('flow')">
+                    <span><span class="s-icon" data-icon="flow"></span><span data-i18n>显示顶栏「流程图」按钮</span></span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="showCodeToggle" checked onchange="App.toggleToolBtn('code')">
+                    <span><span class="s-icon" data-icon="code"></span><span data-i18n>显示顶栏「代码编辑器」按钮</span></span>
+                </label>
+            </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+        <!-- 主题风格 -->
+        <div class="settings-form">
+            <h4 style="font-size:0.9em;margin-bottom:10px;"><span class="s-icon" data-icon="palette"></span><span data-i18n>主题风格</span></h4>
+            <div class="theme-choice-row">
+                <button class="theme-choice" id="themeGreenBtn" onclick="App.setTheme('green')">
+                    <span class="theme-dot" style="background:linear-gradient(135deg,#3d9a8b,#5cb889);"></span><span data-i18n>清新绿</span>
+                </button>
+                <button class="theme-choice" id="themeModernBtn" onclick="App.setTheme('modern')">
+                    <span class="theme-dot" style="background:linear-gradient(135deg,#5b7ce8,#8b5cf6);"></span><span data-i18n>炫酷现代</span>
+                </button>
+            </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+
+        <!-- 数据存储 -->
+        <div class="settings-form">
+            <h4 style="font-size:0.9em;margin-bottom:10px;"><span class="s-icon" data-icon="save"></span><span data-i18n>数据存储</span></h4>
+                        <div class="theme-choice-row" style="margin-bottom:10px;">
+                            <button class="theme-choice" id="storageBrowserBtn" onclick="App.setStorageMode('browser')">
+                                <span class="theme-dot" style="background:linear-gradient(135deg,#5b8def,#7aa5f2);"></span><span data-i18n>浏览器存储</span>
+                            </button>
+                            <button class="theme-choice" id="storageSqliteBtn" onclick="App.setStorageMode('sqlite')">
+                                <span class="theme-dot" style="background:linear-gradient(135deg,#3d9a8b,#2d7a6e);"></span><span data-i18n>SQLite 存储</span>
+                            </button>
+                        </div>
+            <div style="font-size:0.85em;margin-bottom:10px;line-height:1.7;" id="dataFileStatus">未绑定（当前仅存于浏览器）</div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" style="flex:1;padding:7px 10px;font-size:0.82em;" onclick="App.bindDataFile()" data-i18n>绑定并保存</button>
+                <button class="btn btn-primary" style="flex:1;padding:7px 10px;font-size:0.82em;" onclick="App.initSqliteFile()" data-i18n>初始化数据库</button>
+                <button class="btn btn-primary" style="flex:1;padding:7px 10px;font-size:0.82em;" onclick="App.backupSqliteNow()" data-i18n>数据库备份</button>
+            </div>
+            <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:7px 10px;font-size:0.82em;" onclick="App.deduplicateNotes()" data-i18n>清理重复笔记</button>
+        </div>
+
+        <div style="text-align:center;margin-top:12px;">
+            <button class="btn btn-primary" style="padding:9px 42px;" onclick="App.closeModal('settingsModal')" data-i18n>关闭</button>
+        </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 提示 -->
+<div class="toast" id="toast"></div>
+
+<!-- 回到顶部悬浮窗（可拖动调整位置） -->
+<button class="back-to-top" id="backToTopBtn" title="回到顶部（可拖动调整位置）" data-i18n-title aria-label="回到顶部">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="18 14 12 8 6 14"/><line x1="12" y1="8" x2="12" y2="20"/></svg>
+</button>
+
+<!-- 目录同步设置弹窗 -->
+<div class="modal-overlay" id="syncSettingsModal">
+    <div class="modal-box" style="max-width:420px;">
+        <div class="modal-header">
+            <h3 data-i18n>⚙ 同步设置</h3>
+            <button class="modal-close" onclick="App.closeModal('syncSettingsModal')">✕</button>
+        </div>
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px;font-size:13px;">
+            <div>
+                <div style="font-weight:600;margin-bottom:6px;" data-i18n>仅一侧有的项，一键同步时（可多选）：</div>
+                <label style="display:flex;gap:6px;align-items:center;margin:4px 0;cursor:pointer;"><input type="checkbox" id="syncDoCopy" onchange="App.saveSyncSettings()"><span data-i18n>拷贝到缺失侧（从没有到有）</span></label>
+                <label style="display:flex;gap:6px;align-items:center;margin:4px 0;cursor:pointer;"><input type="checkbox" id="syncDoDel" onchange="App.saveSyncSettings()"><span data-i18n>删除已有的一侧</span></label>
+                <div style="color:var(--text-light);font-size:12px;margin-top:2px;" data-i18n>两项都不勾＝不同步这些项；同时勾选时优先拷贝。</div>
+            </div>
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="syncConfirmBoth" onchange="App.saveSyncSettings()"><span data-i18n>两边都有的项同步前需要确认</span></label>
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="syncConfirmDel" onchange="App.saveSyncSettings()"><span data-i18n>删除操作前需要确认</span></label>
+        </div>
+    </div>
+</div>
+
+<!-- 导出菜单弹窗 -->
+<div class="modal-overlay" id="exportModal">
+    <div class="modal-box" style="max-width:360px;">
+        <div class="modal-header">
+            <h3 data-i18n>📤 导出笔记</h3>
+            <button class="modal-close" onclick="App.closeModal('exportModal')">✕</button>
+        </div>
+        <div class="export-options">
+            <button class="export-btn" onclick="App.exportMarkdown()">
+                <span class="export-icon">📝</span>
+                <div><strong>Markdown</strong><br><small data-i18n>纯文本标记格式，适合笔记软件导入</small></div>
+            </button>
+            <button class="export-btn" onclick="App.exportWord()">
+                <span class="export-icon">📄</span>
+                <div><strong data-i18n>Word 文档</strong><br><small data-i18n>保留富文本格式，可用 Office 打开</small></div>
+            </button>
+            <button class="export-btn" onclick="App.exportPDF()">
+                <span class="export-icon">📕</span>
+                <div><strong data-i18n>PDF 文件</strong><br><small data-i18n>通过打印功能保存为 PDF</small></div>
+            </button>
+            <button class="export-btn" onclick="App.exportAllMarkdown()">
+                <span class="export-icon">📚</span>
+                <div><strong data-i18n>全部笔记 (Markdown)</strong><br><small data-i18n>将所有笔记合并导出为一个文件</small></div>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 生成待办弹窗 -->
+<div class="modal-overlay" id="todoModal">
+    <div class="modal-box" style="max-width:420px;max-height:85vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3 data-i18n>✅ 生成待办任务</h3>
+            <button class="modal-close" onclick="App.closeModal('todoModal')">✕</button>
+        </div>
+        <div class="settings-form">
+            <label><span data-i18n>将生成</span> <span id="todoPreviewCount" style="color:var(--teal);font-weight:700;">1</span> <span data-i18n>条待办任务（第一行为标题，其余为描述）：</span></label>
+            <div id="todoPreviewList" class="todo-preview-list"></div>
+            <label data-i18n>⏰ 希望完成时间</label>
+            <input type="datetime-local" id="todoDueInput">
+            <div style="display:flex;gap:10px;margin-top:18px;">
+                <button class="btn" style="flex:1;background:var(--bg);color:var(--text-light);border:1.5px solid var(--border);" onclick="App.closeModal('todoModal')" data-i18n>取消</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="App.confirmGenerateTodos()" data-i18n>确认生成</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 待办任务详情弹窗 -->
+<div class="modal-overlay" id="todoDetailModal">
+    <div class="modal-box" style="max-width:420px;max-height:85vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3 data-i18n>📋 待办任务详情</h3>
+            <button class="modal-close" onclick="App.closeModal('todoDetailModal')">✕</button>
+        </div>
+        <div class="todo-detail-text" id="todoDetailText"></div>
+        <div class="todo-detail-desc" id="todoDetailDesc" style="display:none;"></div>
+        <div class="todo-detail-info" id="todoDetailInfo"></div>
+        <button class="btn btn-primary" style="width:100%;margin-top:20px;" onclick="App.jumpToSourceNote()" data-i18n>📄 跳转到原始笔记</button>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <button class="btn" id="todoDetailToggleBtn" style="flex:1;background:var(--teal-light);color:var(--teal);border:1.5px solid var(--teal);" onclick="App.toggleTodoFromDetail()">✓ 标记完成</button>
+            <button class="btn" style="flex:1;background:#fdeaea;color:#e05252;border:1.5px solid #f5c6c6;" onclick="App.deleteTodoFromDetail()" data-i18n>🗑 删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 脚本加载 -->
+<script src="js/i18n.js?v=20260815"></script>
+<script src="js/crypto.js?v=20260815"></script>
+<script src="js/db.js?v=20260815"></script>
+<script src="js/sqlite-store.js?v=20260815"></script>
+<script src="js/app.js?v=20260815"></script>
+</body>
+</html>
